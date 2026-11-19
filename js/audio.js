@@ -340,6 +340,40 @@ var AudioSys = {
     o.start(t); o.stop(t + 0.4);
   },
 
+  /* 对讲机的电流声 */
+  radio: function (lost) {
+    if (!this.ctx) return;
+    var ctx = this.ctx, t = ctx.currentTime;
+    var src = ctx.createBufferSource();
+    src.buffer = this.noiseBuf;
+    src.playbackRate.value = 1.6;
+    var bp = ctx.createBiquadFilter();
+    bp.type = "bandpass";
+    bp.frequency.value = lost ? 900 : 1600;
+    bp.Q.value = 1.4;
+    var g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(lost ? 0.05 : 0.075, t + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.28);
+    src.connect(bp); bp.connect(g); g.connect(this.master);
+    src.start(t); src.stop(t + 0.3);
+  },
+
+  staticBurst: function () {
+    if (!this.ctx) return;
+    var ctx = this.ctx, t = ctx.currentTime;
+    var src = ctx.createBufferSource();
+    src.buffer = this.noiseBuf; src.loop = true;
+    var hp = ctx.createBiquadFilter();
+    hp.type = "highpass"; hp.frequency.value = 1200;
+    var g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.09, t + 0.05);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 1.1);
+    src.connect(hp); hp.connect(g); g.connect(this.master);
+    src.start(t); src.stop(t + 1.2);
+  },
+
   breath: function () {    if (!this.ctx) return;
     var ctx = this.ctx, t = ctx.currentTime;
     var s = ctx.createBufferSource();

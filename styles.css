@@ -150,6 +150,28 @@ html, body {
   to { transform: translateX(var(--dx, -120vw)); }
 }
 
+/* 对讲机字幕 */
+#radio {
+  position: absolute; left: 14px; top: 128px;
+  max-width: min(58vw, 360px);
+  font-family: var(--mono); font-size: 12px; line-height: 1.7;
+  color: #a89e8f;
+  background: rgba(6,6,6,0.55);
+  border-left: 2px solid rgba(150,140,120,0.4);
+  padding: 6px 10px;
+  text-shadow: 0 1px 3px #000;
+  transition: opacity .45s;
+  opacity: 0;
+  pointer-events: none;
+}
+#radio.show { opacity: 1; }
+#radio.lost { border-left-color: rgba(190,60,70,0.5); color: #8d7b7b; }
+.radio-tag {
+  display: block; font-size: 10px; letter-spacing: .28em;
+  color: #6f665b; margin-bottom: 2px;
+}
+#radio.lost .radio-tag { color: #7a4a52; }
+
 /* 互动提示 */
 #prompt {
   position: absolute; left: 50%; bottom: 17%;

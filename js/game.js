@@ -156,6 +156,18 @@ var Game = {
     this.updateFloorUi();
     Input.clear();
 
+    this.radioInit();
+    this.radioQ = [];
+    this.radioT = 0;
+    this.radioLost = false;
+    this.radioLostPending = 0;
+    this.radioNext = 40;
+    if (this.radioBox) this.radioBox.classList.remove("show");
+    var self0 = this;
+    setTimeout(function () {
+      if (self0.inGame) self0.radioPlay("start");
+    }, 1600);
+
     this.cam.x = this.clampCamX(sx - CFG.VIEW_W / 2);
     this.cam.y = this.clampCamY(sy - CFG.VIEW_H / 2);
 
@@ -249,7 +261,24 @@ var Game = {
     g.update(dt, this);
     this.slow.update(dt, this);
     this.live.update(dt, this);
+    this.radioUpdate(dt);
     if (this.live.on) this.liveOnTime += dt;
+
+    // 队友失联
+    if (this.radioLostPending > 0) {
+      this.radioLostPending -= dt;
+      if (this.radioLostPending <= 0) {
+        this.radioLostPending = 0;
+        this.radioLost = true;
+        this.radioPlay("lost");
+        this.radioNext = 30;
+        AudioSys.staticBurst();
+        var selfR = this;
+        setTimeout(function () {
+          if (selfR.inGame && selfR.state === "play") selfR.toast("对讲机没声了", "只剩电流，还有你一个人的呼吸", 3200);
+        }, 900);
+      }
+    }
 
     // 房间
     var room = World.roomAt(p.x, p.y);
@@ -431,7 +460,8 @@ var Game = {
     this.toast("", LEVELS[target].name, 2200);
 
     if (this.slow.active) this.slow.followFloor(target);
-    if (target === 2) this.onEnterThirdFloor();
+    if (target === 1) this.radioPlay("f2");
+    if (target === 2) { this.radioPlay("f3"); this.onEnterThirdFloor(); }
   },
 
   /* ================= 钥匙与线索 ================= */
@@ -460,6 +490,10 @@ var Game = {
     this.live.addHeat(5);
     this.toast("已取得：" + KEYS[p.key].name, "", 2600);
     this.updateObjective();
+
+    if (p.key === "key2" && !this.radioLost) {
+      this.radioLostPending = 3.2;
+    }
   },
 
   /* ================= 门 ================= */
@@ -610,6 +644,11 @@ var Game = {
     this.toast(clue.toast, "", 2400);
     this.revealKeysIfReady();
 
+    if (this.clueCount === 6) {
+      this.radioSay("灵灵", "……我知道了。六件都在你手上。", 4);
+      this.radioSay("灵灵", "别剪，一条一条发出去。", 4);
+    }
+
     if (!this.ghostWoken) {
       this.ghostWoken = true;
       this.pendingWake = true;
@@ -668,8 +707,57 @@ var Game = {
     }, 2500);
   },
 
-  sayFlavor: function (prop) {
-    var map = {
+  /* ================= 对讲机 ================= */
+  radioInit: function () {
+    this.radioBox = document.getElementById("radio");
+    this.radioText = document.getElementById("radioText");
+  },
+
+  radioPlay: function (key) {
+    var lines = STORY.radio[key] || [];
+    for (var i = 0; i < lines.length; i++) {
+      this.radioQ.push({ who: lines[i].who, text: lines[i].text, dur: 3.6 });
+    }
+  },
+
+  radioSay: function (who, text, dur) {
+    this.radioQ.push({ who: who, text: text, dur: dur || 3.6 });
+  },
+
+  radioUpdate: function (dt) {
+    if (!this.radioBox) return;
+    if (this.radioT > 0) {
+      this.radioT -= dt;
+      if (this.radioT <= 0) this.radioBox.classList.remove("show");
+      return;
+    }
+    if (this.radioQ.length) {
+      var m = this.radioQ.shift();
+      this.radioText.textContent = m.who + "：" + m.text;
+      this.radioBox.classList.toggle("lost", this.radioLost);
+      this.radioBox.classList.remove("hidden");
+      this.radioBox.classList.add("show");
+      this.radioT = m.dur;
+      if (AudioSys.radio) AudioSys.radio(this.radioLost);
+      return;
+    }
+    // 失联之后，偶尔冒出一段电流
+    if (this.radioLost) {
+      this.radioNext -= dt;
+      if (this.radioNext <= 0) {
+        this.radioNext = 26 + Math.random() * 20;
+        var junk = [
+          "……能听到吗……",
+          "……别关……",
+          "……三楼……",
+          "……她一直……"
+        ];
+        this.radioSay("？", junk[Math.floor(Math.random() * junk.length)], 2.4);
+      }
+    }
+  },
+
+  sayFlavor: function (prop) {    var map = {
       board: STORY.flavor.board,
       banner: STORY.flavor.banner,
       sink: STORY.flavor.sink,
