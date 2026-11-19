@@ -91,6 +91,7 @@ var LEVELS = [
       /* 门与楼梯 */
       { t: "firedoor", x: 20, y: 17, w: 1, h: 5, doorId: "d1a" },
       { t: "firedoor", x: 45, y: 17, w: 1, h: 5, doorId: "d1b" },
+      { t: "barricade", x: 32, y: 21, w: 1, h: 1, barId: "b1", label: "把桌椅推过去堵住" },
       { t: "lock", x: 56, y: 17, w: 1, h: 5, lock: "lock1", label: "消防门 · 上着锁" },
       { t: "stairs", x: 58, y: 17, w: 2, h: 4, label: "楼梯" }
     ]
@@ -157,6 +158,7 @@ var LEVELS = [
       /* 门与楼梯 */
       { t: "firedoor", x: 22, y: 17, w: 1, h: 5, doorId: "d2a" },
       { t: "firedoor", x: 44, y: 17, w: 1, h: 5, doorId: "d2b" },
+      { t: "barricade", x: 36, y: 21, w: 1, h: 1, barId: "b2", label: "把桌椅推过去堵住" },
       { t: "lock", x: 56, y: 17, w: 1, h: 5, lock: "lock2", label: "电子门禁" },
       { t: "stairs", x: 58, y: 17, w: 2, h: 4, label: "楼梯" }
     ]
@@ -205,6 +207,7 @@ var LEVELS = [
       { t: "banner", x: 41, y: 21, w: 3, h: 1, decor: true, label: "看警戒线残留" },
       /* 门与楼梯 */
       { t: "firedoor", x: 20, y: 17, w: 1, h: 5, doorId: "d3a" },
+      { t: "barricade", x: 33, y: 21, w: 1, h: 1, barId: "b3", label: "把桌椅推过去堵住" },
       { t: "lock", x: 56, y: 17, w: 1, h: 5, lock: "lock3", label: "断电连锁门" },
       { t: "stairs", x: 58, y: 17, w: 2, h: 4, label: "通往天台" }
     ]

@@ -10,6 +10,7 @@ var Game = {
   cam: { x: 0, y: 0 },
   player: Player,
   ghost: Ghost,
+  slow: SlowGhost,
   live: Live,
 
   clues: {},
@@ -132,6 +133,9 @@ var Game = {
     this.heatHinted = false;
     this.pendingWake = false;
     this.busy = false;
+    this.barTimers = {};
+    this.slowSpawned = false;
+    this.slow.reset();
 
     this.floor = 0;
     World.build(0);
@@ -243,6 +247,7 @@ var Game = {
     if (!Input.keys["f"]) this.fKeyLock = false;
 
     g.update(dt, this);
+    this.slow.update(dt, this);
     this.live.update(dt, this);
     if (this.live.on) this.liveOnTime += dt;
 
@@ -299,6 +304,22 @@ var Game = {
       this.noises[i].ttl -= dt;
       if (this.noises[i].ttl <= 0) this.noises.splice(i, 1);
     }
+
+    // 桌椅只能撑一段时间
+    for (var bid in this.barTimers) {
+      this.barTimers[bid] -= dt;
+      if (this.barTimers[bid] <= 0) {
+        delete this.barTimers[bid];
+        this.doorStates[bid] = "used";
+        for (var j = 0; j < World.props.length; j++) {
+          var bp = World.props[j];
+          if (bp.t === "barricade" && bp.barId === bid) bp.state = "used";
+        }
+        World.refreshDoors();
+        this.toast("", "桌椅撑不住，散了", 2000);
+        AudioSys.stinger("locker", 0.8);
+      }
+    }
   },
 
   clampCamX: function (x) {
@@ -319,10 +340,11 @@ var Game = {
     var self = this;
     World.props.forEach(function (p) {
       if (p.dynamic) {
-        var id = p.t === "firedoor" ? p.doorId : p.lock;
+        var id = p.t === "firedoor" ? p.doorId : (p.t === "lock" ? p.lock : p.barId);
         var st = self.doorStates[id];
         if (p.t === "firedoor") p.state = st === "closed" ? "closed" : "open";
-        else p.state = st === "open" ? "open" : "closed";
+        else if (p.t === "lock") p.state = st === "open" ? "open" : "closed";
+        else p.state = st || "ready";
       }
       if (p.t === "key") p.revealed = !!self.revealedKeys[p.key];
     });
@@ -408,6 +430,7 @@ var Game = {
     this.emitNoise(px, py, CFG.NOISE_ACT, true);
     this.toast("", LEVELS[target].name, 2200);
 
+    if (this.slow.active) this.slow.followFloor(target);
     if (target === 2) this.onEnterThirdFloor();
   },
 
@@ -460,6 +483,17 @@ var Game = {
       this.toast("", "防火门关上 —— 它撞开要几秒", 2000);
     }
     World.refreshDoors();
+  },
+
+  pushBarricade: function (p) {
+    if (p.state !== "ready") return;
+    p.state = "blocking";
+    this.doorStates[p.barId] = "blocking";
+    World.refreshDoors();
+    AudioSys.stinger("door", 0.7);
+    this.emitNoise(p.px, p.py, CFG.NOISE_RUN, true);
+    this.toast("", "桌椅横在走廊里 —— 大概能撑十几秒", 2400);
+    this.barTimers[p.barId] = CFG.BARRICADE_HOLD;
   },
 
   tryLock: function (p) {
@@ -534,6 +568,7 @@ var Game = {
       if (t.state !== "open") this.tryLock(t);
       return;
     }
+    if (t.t === "barricade") { this.pushBarricade(t); return; }
     if (t.t === "stairs") { this.openStairs(); return; }
     if (t.hide) { this.doHide(t); return; }
     if (t.decor) { this.sayFlavor(t); return; }
@@ -619,12 +654,18 @@ var Game = {
     this.shake = 0.6;
   },
 
-  /* 三层：慢鬼登场（阶段二接上，这里先留演出钩子） */
+  /* 三层：慢鬼登场 */
   onEnterThirdFloor: function () {
     if (this.slowSpawned) return;
     this.slowSpawned = true;
-    this.toast("楼上有东西在走", "很慢，但没有停", 3200);
+    this.slow.spawn(6 * CFG.TILE, 19.5 * CFG.TILE, 2);
+    this.toast("楼上有东西在走", "很慢，但没有停", 3400);
     AudioSys.stinger("wake", 0.7);
+    AudioSys.heavyStep(true);
+    var self = this;
+    setTimeout(function () {
+      if (self.state === "play" && self.slow.active) self.live.say("这脚步声明明在楼上", "panic");
+    }, 2500);
   },
 
   sayFlavor: function (prop) {
@@ -707,6 +748,17 @@ var Game = {
     this.target = null;
     this.curRoom = null;
     this.live.heat = Math.min(this.live.heat, 30);
+    if (this.slow.active) {
+      this.slow.x = 6 * CFG.TILE;
+      this.slow.y = 19.5 * CFG.TILE;
+      this.slow.floor = this.floor;
+      this.slow.path = [];
+      this.slow.freezeT = 2.2;
+      this.slow.arriveT = 0;
+      this.slow.countT = 0;
+      this.slow.breakT = 0;
+      this.slow.breaking = null;
+    }
     this.cam.x = this.clampCamX(cp.x - CFG.VIEW_W / 2);
     this.cam.y = this.clampCamY(cp.y - CFG.VIEW_H / 2);
     this.flashRed = 0;

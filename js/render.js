@@ -337,6 +337,7 @@ var Renderer = {
 
     // 怪物
     if (g.ghost && g.ghost.active) this.drawGhost(c, g, toS);
+    if (g.slow && g.slow.active && g.slow.arriveT <= 0) this.drawSlowGhost(c, g, toS);
 
     // 玩家
     if (!g.player.hidden) this.drawPlayer(c, g, toS);
@@ -473,6 +474,36 @@ var Renderer = {
           c.fillStyle = "rgba(90,190,150,0.55)";
           c.beginPath(); c.arc(s2.x + w2 - 5.5, s2.y + h2 * 0.44 + 3, 2.2, 0, 6.283); c.fill();
         }
+      } else if (p.t === "barricade") {
+        var s4 = toS(p.x * T, p.y * T);
+        var w4 = p.w * T, h4 = p.h * T;
+        if (p.state === "blocking") {
+          // 横在走廊里的一堆桌椅
+          c.fillStyle = "#3a2c20";
+          c.fillRect(s4.x, s4.y - 4 * T, w4, 5 * T);
+          c.fillStyle = "#2a1f16";
+          for (var q = 0; q < 5; q++) {
+            c.fillRect(s4.x + 1, s4.y - 4 * T + q * T + 6, w4 - 2, T - 10);
+          }
+          c.fillStyle = "#5a4835";
+          c.fillRect(s4.x, s4.y - 4 * T + 4, w4, 3);
+          c.fillRect(s4.x + 2, s4.y - T - 4, w4 - 4, 3);
+        } else if (p.state === "used") {
+          c.fillStyle = "#2b2118";
+          c.fillRect(s4.x + 2, s4.y + 4, w4 - 4, h4 - 8);
+          c.fillStyle = "#1d1610";
+          c.fillRect(s4.x + 6, s4.y + 10, w4 - 12, h4 - 18);
+        } else {
+          // ready：靠墙堆着的桌椅，等着被推过去
+          c.fillStyle = "#3a2c20";
+          c.fillRect(s4.x + 3, s4.y + 6, w4 - 6, h4 - 12);
+          c.fillStyle = "#241a12";
+          c.fillRect(s4.x + 3, s4.y + 6, w4 - 6, 3);
+          c.fillStyle = "#5a4835";
+          c.fillRect(s4.x + 6, s4.y + 11, w4 - 12, 2);
+          c.fillStyle = "rgba(216,162,74,0.22)";
+          c.fillRect(s4.x + 3, s4.y + h4 - 8, w4 - 6, 2);
+        }
       } else if (p.t === "key" && p.revealed) {
         var s3 = toS(p.px, p.py);
         var pulse = 0.5 + 0.5 * Math.sin(t * 3.4);
@@ -485,6 +516,78 @@ var Renderer = {
         c.restore();
       }
     }
+  },
+
+  /* 慢鬼：高、瘦、歪着头，走得很慢 */
+  drawSlowGhost: function (c, g, toS) {
+    var sp = g.slow;
+    var s = toS(sp.x, sp.y);
+    var t = this.time;
+    var sway = Math.sin(t * 1.15) * 3.2;
+    var bob = Math.sin(t * 2.1) * 1.6;
+
+    c.save();
+    c.translate(s.x, s.y);
+
+    // 地面阴影
+    c.fillStyle = "rgba(0,0,0,0.6)";
+    c.beginPath(); c.ellipse(0, 20, 16, 7, 0, 0, 6.283); c.fill();
+
+    // 长长的身体
+    c.fillStyle = "rgba(3,3,4,0.96)";
+    c.beginPath();
+    c.moveTo(-10 + sway * 0.4, 22);
+    c.quadraticCurveTo(-15, 2, -8 + sway, -28 - bob);
+    c.quadraticCurveTo(0, -36 - bob, 8 - sway, -28 - bob);
+    c.quadraticCurveTo(15, 2, 10 - sway * 0.4, 22);
+    c.closePath();
+    c.fill();
+
+    // 垂下来的长发
+    c.strokeStyle = "rgba(2,2,3,0.85)";
+    c.lineWidth = 2.4;
+    for (var k = 0; k < 6; k++) {
+      var hx = -9 + k * 3.6;
+      c.beginPath();
+      c.moveTo(hx, -30);
+      c.quadraticCurveTo(hx + Math.sin(t * 1.4 + k) * 4, -6, hx + Math.sin(t * 1.1 + k) * 5, 14);
+      c.stroke();
+    }
+
+    // 歪着的头
+    c.save();
+    c.translate(0, -30 - bob);
+    c.rotate(0.24);
+    c.fillStyle = "#020203";
+    c.beginPath(); c.ellipse(0, 0, 9, 11, 0, 0, 6.283); c.fill();
+    // 一条发白的眼缝
+    c.fillStyle = "rgba(228,222,206,0.75)";
+    c.fillRect(-4.5, -1.5, 9, 1.6);
+    c.restore();
+
+    // 手：垂着，破门时抬起
+    c.strokeStyle = "rgba(2,2,3,0.95)";
+    c.lineWidth = 4;
+    c.lineCap = "round";
+    var armLift = sp.state === "break" ? -26 + Math.sin(t * 9) * 6 : 10;
+    c.beginPath();
+    c.moveTo(-9, -12);
+    c.quadraticCurveTo(-19, -2, -16 + sway, armLift);
+    c.stroke();
+    c.beginPath();
+    c.moveTo(9, -12);
+    c.quadraticCurveTo(19, -2, 16 - sway, 12);
+    c.stroke();
+
+    // 数门的时候，脚下有一圈极淡的红
+    if (sp.countT > 0) {
+      var a = 0.06 + 0.09 * Math.abs(Math.sin(t * 3));
+      c.strokeStyle = "rgba(200,60,70," + a + ")";
+      c.lineWidth = 2;
+      c.beginPath(); c.arc(0, 0, 26 + sp.countT * 2, 0, 6.283); c.stroke();
+    }
+
+    c.restore();
   },
 
   drawGhost: function (c, g, toS) {

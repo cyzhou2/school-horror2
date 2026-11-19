@@ -56,18 +56,18 @@ var World = {
     this.props = lv.props.map(function (p, idx2) {
       var type = p.t;
       var solid = !(p.decor || type === "clue" || type === "key");
-      var dynamic = (type === "firedoor" || type === "lock");
+      var dynamic = (type === "firedoor" || type === "lock" || type === "barricade");
       var o = {
         idx: idx2, t: type,
         x: p.x, y: p.y, w: p.w || 1, h: p.h || 1,
         hide: !!p.hide, decor: !!p.decor,
         clue: p.clue || null, key: p.key || null,
-        lock: p.lock || null, doorId: p.doorId || null,
+        lock: p.lock || null, doorId: p.doorId || null, barId: p.barId || null,
         label: p.label || "",
         px: (p.x + (p.w || 1) / 2) * CFG.TILE,
         py: (p.y + (p.h || 1) / 2) * CFG.TILE,
         dynamic: dynamic,
-        state: dynamic ? "closed" : "static",
+        state: dynamic ? (type === "barricade" ? "ready" : "closed") : "static",
         solid: solid && !dynamic,
         hiddenInside: false,
         danger: false,
@@ -96,6 +96,9 @@ var World = {
     for (var y = 0; y < CFG.MAP_H; y++) this.dyn[y].fill(0);
     this.props.forEach(function (p) {
       if (p.dynamic && p.state === "closed") this.fillSolid(p, 1);
+      if (p.t === "barricade" && p.state === "blocking") {
+        for (var y = 17; y <= 21; y++) if (this.inBounds(p.x, y)) this.dyn[y][p.x] = 1;
+      }
     }, this);
   },
 
@@ -223,12 +226,30 @@ var World = {
     return path;
   },
 
+  /* 玩家与鬼之间被关着的门（用于破门） */
+  blockerBetween: function (ax, ay, bx, by) {
+    var best = null, bestD = 1e9;
+    for (var i = 0; i < this.props.length; i++) {
+      var p = this.props[i];
+      var isDoor = p.t === "firedoor" && p.state === "closed";
+      var isBar = p.t === "barricade" && p.state === "blocking";
+      if (!isDoor && !isBar) continue;
+      // 目标分别在门的两侧
+      if ((ax - p.px) * (bx - p.px) >= 0) continue;
+      if (Math.abs(ay - p.py) > 130 || Math.abs(by - p.py) > 130) continue;
+      var d = Math.abs(ax - p.px);
+      if (d < bestD) { bestD = d; best = p; }
+    }
+    return best;
+  },
+
   nearestProp: function (px, py, range) {
     var best = null, bestD = range * range;
     for (var i = 0; i < this.props.length; i++) {
       var p = this.props[i];
       var inter = p.hide || p.clue || p.decor || p.t === "stairs" ||
         p.t === "firedoor" || (p.t === "lock" && p.state !== "open") ||
+        (p.t === "barricade" && p.state === "ready") ||
         (p.key && p.revealed);
       if (!inter) continue;
       if (p.key && !p.revealed) continue;

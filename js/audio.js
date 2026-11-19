@@ -310,8 +310,37 @@ var AudioSys = {
     o.start(t); o.stop(t + 0.4);
   },
 
-  breath: function () {
+  /* 慢鬼的脚步：拖沓、闷、带一点摩擦 */
+  heavyStep: function (near) {
     if (!this.ctx) return;
+    var ctx = this.ctx, t = ctx.currentTime;
+    var src = ctx.createBufferSource();
+    src.buffer = this.noiseBuf;
+    src.playbackRate.value = 0.42;
+    var lp = ctx.createBiquadFilter();
+    lp.type = "lowpass";
+    lp.frequency.value = near ? 420 : 300;
+    var g = ctx.createGain();
+    var peak = near ? 0.3 : 0.12;
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(peak, t + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.42);
+    src.connect(lp); lp.connect(g); g.connect(this.master);
+    src.start(t); src.stop(t + 0.5);
+
+    var o = ctx.createOscillator();
+    o.type = "sine";
+    o.frequency.setValueAtTime(52, t);
+    o.frequency.exponentialRampToValueAtTime(33, t + 0.3);
+    var og = ctx.createGain();
+    og.gain.setValueAtTime(0.0001, t);
+    og.gain.exponentialRampToValueAtTime(near ? 0.18 : 0.08, t + 0.02);
+    og.gain.exponentialRampToValueAtTime(0.0001, t + 0.36);
+    o.connect(og); og.connect(this.master);
+    o.start(t); o.stop(t + 0.4);
+  },
+
+  breath: function () {    if (!this.ctx) return;
     var ctx = this.ctx, t = ctx.currentTime;
     var s = ctx.createBufferSource();
     s.buffer = this.noiseBuf; s.loop = true;

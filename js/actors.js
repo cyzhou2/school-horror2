@@ -128,6 +128,8 @@ var Ghost = {
   huntProp: null,
   huntT: 0,
   freezeT: 0,
+  breakT: 0,
+  breaking: null,
   stuckT: 0,
   lastX: 0, lastY: 0,
   waypoint: null,
@@ -253,6 +255,32 @@ var Ghost = {
       return;
     }
 
+    // 被关上的门挡住：它也会撞门，只是比慢鬼快
+    if (this.state === "chase" && !this.path.length) {
+      var bl = World.blockerBetween(this.x, this.y, p.x, p.y);
+      if (bl) {
+        this.breaking = bl;
+        this.breakT += dt;
+        if (this.breakT > 3.5) {
+          if (bl.t === "barricade") {
+            bl.state = "used";
+            g.doorStates[bl.barId] = "used";
+          } else {
+            bl.state = "open";
+            g.doorStates[bl.doorId] = "open";
+          }
+          World.refreshDoors();
+          AudioSys.stinger("locker", 1);
+          g.shake = Math.min(1, g.shake + 0.4);
+          this.breakT = 0;
+          this.breaking = null;
+        }
+        return;
+      }
+    }
+    this.breakT = 0;
+    this.breaking = null;
+
     this.moveAlong(dt, g);
 
     // 追逐 -> 丢失
@@ -358,8 +386,7 @@ var Ghost = {
     this.x = np.x; this.y = np.y;
   },
 
-  pickWaypoint: function (g) {
-    var pts = [
+  pickWaypoint: function (g) {    var pts = [
       { x: 10 * 32, y: 19 * 32 },
       { x: 25 * 32, y: 19 * 32 },
       { x: 40 * 32, y: 19 * 32 },
@@ -383,5 +410,225 @@ var Ghost = {
     this.target.x = best.x; this.target.y = best.y;
     this.path = World.findPath(this.x, this.y, best.x, best.y);
     this.pathI = 0;
+  }
+};
+
+/* ================= 慢鬼：甩不掉，只会一直走 ================= */
+var SlowGhost = {
+  x: 0, y: 0, r: 14,
+  active: false,
+  floor: 0,
+  state: "idle",          // walk / break / arrive
+  path: [], pathI: 0,
+  repathT: 0,
+  freezeT: 0,
+  arriveT: 0,
+  breakT: 0,
+  breaking: null,
+  hitT: 0,
+  countT: 0,
+  stepT: 0,
+  stuckT: 0,
+  trail: [],
+
+  spawn: function (x, y, floor) {
+    this.x = x; this.y = y;
+    this.floor = floor;
+    this.active = true;
+    this.state = "walk";
+    this.path = [];
+    this.pathI = 0;
+    this.repathT = 0;
+    this.freezeT = 1.2;
+    this.arriveT = 0;
+    this.breakT = 0;
+    this.breaking = null;
+    this.countT = 0;
+    this.stepT = 0;
+    this.trail = [];
+  },
+
+  reset: function () {
+    this.active = false;
+    this.floor = 0;
+    this.state = "idle";
+    this.path = [];
+    this.breaking = null;
+    this.breakT = 0;
+    this.countT = 0;
+    this.arriveT = 0;
+    this.trail = [];
+  },
+
+  /* 玩家换了楼层：它要慢慢走过来 */
+  followFloor: function (floor) {
+    if (!this.active) return;
+    if (this.floor === floor) return;
+    this.floor = floor;
+    this.arriveT = 7.0;
+    this.state = "arrive";
+    this.path = [];
+    this.breaking = null;
+    this.breakT = 0;
+    this.countT = 0;
+  },
+
+  update: function (dt, g) {
+    if (!this.active) return;
+    var p = g.player;
+
+    // 换层途中
+    if (this.arriveT > 0) {
+      this.arriveT -= dt;
+      if (this.arriveT <= 0) {
+        this.x = 57.5 * CFG.TILE;
+        this.y = 19.5 * CFG.TILE;
+        this.state = "walk";
+        this.path = [];
+        this.freezeT = 0.9;
+        AudioSys.heavyStep(true);
+        g.toast("", "楼梯口传来很慢的脚步声", 2200);
+        g.shake = Math.min(1, g.shake + 0.3);
+      }
+      return;
+    }
+
+    if (this.freezeT > 0) { this.freezeT -= dt; return; }
+
+    var hidden = p.hidden && p.hidingProp;
+    var tx = hidden ? p.hidingProp.px : p.x;
+    var ty = hidden ? p.hidingProp.py : p.y;
+
+    // 先处理挡路的门
+    var blocker = World.blockerBetween(this.x, this.y, tx, ty);
+    if (blocker) {
+      var bd = Math.hypot(blocker.px - this.x, blocker.py - this.y);
+      if (bd > 46) {
+        // 门把路堵死了，寻路必然为空：直接朝门走
+        this.walkStraight(blocker.px, blocker.py, dt);
+        this.state = "walk";
+      } else {
+        this.state = "break";
+        this.breaking = blocker;
+        this.breakT += dt;
+        this.hitT -= dt;
+        if (this.hitT <= 0) {
+          this.hitT = 0.42;
+          AudioSys.stinger("locker", 1);
+          g.shake = Math.min(1, g.shake + 0.18);
+        }
+        var need = blocker.t === "barricade" ? CFG.BARRICADE_HOLD : CFG.FIREDOOR_BREAK;
+        if (this.breakT >= need) this.breakThrough(g, blocker);
+      }
+      return;
+    }
+
+    this.breaking = null;
+    this.breakT = 0;
+    this.state = "walk";
+    this.walkTo(tx, ty, dt, g);
+
+    // 实在走不过去（比如被锁门隔开）：它从楼梯绕过来
+    var distTarget = Math.hypot(tx - this.x, ty - this.y);
+    if (!this.path.length && distTarget > 64) {
+      this.stuckT += dt;
+      if (this.stuckT > 3) {
+        this.stuckT = 0;
+        this.x = 57.5 * CFG.TILE;
+        this.y = 19.5 * CFG.TILE;
+        this.path = [];
+        this.freezeT = 0.8;
+        AudioSys.heavyStep(true);
+        g.toast("", "脚步声从楼梯口过来了", 2000);
+      }
+    } else {
+      this.stuckT = 0;
+    }
+
+    // 躲在柜子里：它会在门口数到 6
+    if (hidden) {
+      var dd = Math.hypot(p.hidingProp.px - this.x, p.hidingProp.py - this.y);
+      if (dd < 54) {
+        this.countT += dt;
+        this.hitT -= dt;
+        if (this.hitT <= 0) {
+          this.hitT = 1.0;
+          AudioSys.heart(1);
+          AudioSys.stinger("locker", 0.7);
+        }
+        if (this.countT >= CFG.SLOW_HIDE_COUNT) g.die("它数完了");
+      } else {
+        this.countT = 0;
+      }
+    } else {
+      this.countT = 0;
+      var d2 = Math.hypot(p.x - this.x, p.y - this.y);
+      if (d2 < CFG.SLOW_CATCH) g.die("它抓住了你");
+    }
+
+    // 脚步与拖影
+    var dist = Math.hypot(p.x - this.x, p.y - this.y);
+    this.stepT -= dt;
+    if (this.stepT <= 0) {
+      this.stepT = 0.72;
+      if (dist < 520) AudioSys.heavyStep(dist < 240);
+    }
+    if (Math.random() < dt * 8) {
+      this.trail.unshift({ x: this.x, y: this.y });
+      if (this.trail.length > 5) this.trail.pop();
+    }
+  },
+
+  walkTo: function (tx, ty, dt, g) {
+    this.repathT -= dt;
+    if (!this.path.length || this.repathT <= 0) {
+      this.path = World.findPath(this.x, this.y, tx, ty);
+      this.pathI = 0;
+      this.repathT = 0.5;
+    }
+    var node = this.path[this.pathI];
+    if (!node) return;
+    var dx = node.x - this.x, dy = node.y - this.y;
+    var d = Math.sqrt(dx * dx + dy * dy);
+    var sp = CFG.SLOW_SPEED * dt;
+    if (d < sp) {
+      this.stepTo(node.x, node.y);
+      this.pathI++;
+      if (this.pathI >= this.path.length) this.path = [];
+    } else {
+      this.stepTo(this.x + dx / d * sp, this.y + dy / d * sp);
+    }
+  },
+
+  walkStraight: function (tx, ty, dt) {
+    var dx = tx - this.x, dy = ty - this.y;
+    var d = Math.sqrt(dx * dx + dy * dy);
+    if (d < 1) return;
+    var sp = CFG.SLOW_SPEED * dt;
+    this.stepTo(this.x + dx / d * sp, this.y + dy / d * sp);
+  },
+
+  stepTo: function (nx, ny) {
+    var np = World.moveCircle(this.x, this.y, this.r, nx - this.x, ny - this.y);
+    this.x = np.x; this.y = np.y;
+  },
+
+  breakThrough: function (g, prop) {
+    if (prop.t === "barricade") {
+      prop.state = "used";
+      g.doorStates[prop.barId] = "used";
+      g.toast("", "桌椅被它推开了", 2000);
+    } else {
+      prop.state = "open";
+      g.doorStates[prop.doorId] = "open";
+      g.toast("", "防火门被撞开了", 2000);
+    }
+    World.refreshDoors();
+    AudioSys.stinger("dead", 1);
+    g.shake = Math.min(1, g.shake + 0.5);
+    this.breakT = 0;
+    this.breaking = null;
+    this.freezeT = 0.5;
+    this.path = [];
   }
 };
