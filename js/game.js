@@ -135,6 +135,7 @@ var Game = {
     this.busy = false;
     this.barTimers = {};
     this.slowSpawned = false;
+    this.slowHinted = false;
     this.slow.reset();
 
     this.floor = 0;
@@ -647,6 +648,7 @@ var Game = {
     if (this.clueCount === 6) {
       this.radioSay("灵灵", "……我知道了。六件都在你手上。", 4);
       this.radioSay("灵灵", "别剪，一条一条发出去。", 4);
+      this.spawnSlowGhost();
     }
 
     if (!this.ghostWoken) {
@@ -693,18 +695,35 @@ var Game = {
     this.shake = 0.6;
   },
 
-  /* 三层：慢鬼登场 */
+  /* 三层：先给一个征兆，不放出鬼 */
   onEnterThirdFloor: function () {
-    if (this.slowSpawned) return;
-    this.slowSpawned = true;
-    this.slow.spawn(6 * CFG.TILE, 19.5 * CFG.TILE, 2);
+    if (this.slowHinted) return;
+    this.slowHinted = true;
     this.toast("楼上有东西在走", "很慢，但没有停", 3400);
     AudioSys.stinger("wake", 0.7);
     AudioSys.heavyStep(true);
     var self = this;
     setTimeout(function () {
-      if (self.state === "play" && self.slow.active) self.live.say("这脚步声明明在楼上", "panic");
+      if (self.state === "play") self.live.say("这脚步声明明在楼上", "panic");
     }, 2500);
+  },
+
+  /* 六件证据齐了：楼梯口有东西走下来 */
+  spawnSlowGhost: function () {
+    if (this.slowSpawned) return;
+    this.slowSpawned = true;
+    this.slow.spawn(50 * CFG.TILE, 19.5 * CFG.TILE, this.floor);
+    AudioSys.heavyStep(true);
+    AudioSys.stinger("dead", 0.8);
+    this.shake = 0.7;
+    this.toast("楼梯口有东西下来了", "它不会跑，也不会停", 3600);
+    var self = this;
+    setTimeout(function () {
+      if (self.state === "play") {
+        self.live.say("楼下那个上来了", "panic");
+        self.live.addHeat(12);
+      }
+    }, 2200);
   },
 
   /* ================= 对讲机 ================= */
