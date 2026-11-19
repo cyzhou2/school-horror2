@@ -88,7 +88,7 @@ var Renderer = {
     }
 
     /* --- 门洞地面 --- */
-    DOORWAYS.forEach(function (d) {
+    World.level.doorways.forEach(function (d) {
       var w = (d.w || 1) * T;
       c.fillStyle = "#241f19";
       c.fillRect(d.x * T, d.y * T, w, T);
@@ -129,9 +129,11 @@ var Renderer = {
       }
     }
 
-    /* --- 物件 --- */
+    /* --- 物件（门和钥匙是动态的，画在每帧） --- */
     for (var p = 0; p < World.props.length; p++) {
-      this.bakeProp(c, World.props[p]);
+      var pr = World.props[p];
+      if (pr.dynamic || pr.t === "key") continue;
+      this.bakeProp(c, pr);
     }
   },
 
@@ -244,9 +246,33 @@ var Renderer = {
         c.fillRect(x + w / 2 - 1, y + 2, 2, h - 6);
         c.fillStyle = "#6b6a63";
         c.fillRect(x + 10, y + h * 0.5, w - 20, 3);
-        // 门缝漏光
         c.fillStyle = "rgba(120,150,170,0.10)";
         c.fillRect(x + 2, y + h - 3, w - 4, 2);
+        break;
+
+      case "stairs":
+        // 台阶 + 扶手 + 向上箭头
+        c.fillStyle = "#1d1915";
+        c.fillRect(x, y, w, h);
+        var steps = 8;
+        for (var st = 0; st < steps; st++) {
+          var sy = y + 5 + st * (h - 12) / steps;
+          c.fillStyle = st % 2 ? "#302a24" : "#3a332c";
+          c.fillRect(x + 4, sy, w - 9, (h - 12) / steps - 1.5);
+          c.fillStyle = "rgba(160,142,112,0.14)";
+          c.fillRect(x + 4, sy, w - 9, 1);
+        }
+        // 扶手
+        c.fillStyle = "#4a423a";
+        c.fillRect(x + w - 5, y + 4, 3, h - 8);
+        // 向上箭头
+        c.fillStyle = "rgba(200,220,200,0.22)";
+        c.beginPath();
+        c.moveTo(x + 11, y + h * 0.32);
+        c.lineTo(x + 18, y + h * 0.16);
+        c.lineTo(x + 25, y + h * 0.32);
+        c.closePath();
+        c.fill();
         break;
     }
   },
@@ -277,10 +303,15 @@ var Renderer = {
     // 世界坐标换算
     var toS = function (wx, wy) { return { x: wx - ox, y: wy - oy }; };
 
+    // 动态物件：门 / 锁 / 钥匙
+    this.drawDynamicProps(c, g, toS);
+
     // 线索微光
     for (var i = 0; i < World.props.length; i++) {
       var p = World.props[i];
-      if (!p.clue || g.clues[p.clue]) continue;
+      var isKey = p.t === "key";
+      if (isKey) { if (!p.revealed) continue; }
+      else if (!p.clue || g.clues[p.clue]) continue;
       if (!World.los(g.player.x, g.player.y, p.px, p.py)) continue;
       var s = toS(p.px, p.py);
       if (s.x < -60 || s.y < -60 || s.x > VW + 60 || s.y > VH + 60) continue;
@@ -383,6 +414,76 @@ var Renderer = {
       c.fillRect(s.x - bw / 2, s.y + 16, bw, 3);
       c.fillStyle = p.stamina > 30 ? "rgba(200,190,160,0.75)" : "rgba(200,70,80,0.9)";
       c.fillRect(s.x - bw / 2, s.y + 16, bw * (p.stamina / 100), 3);
+    }
+  },
+
+  /* ================= 动态物件：防火门 / 锁门 / 钥匙 ================= */
+  drawDynamicProps: function (c, g, toS) {
+    var T = this.T, t = this.time;
+    for (var i = 0; i < World.props.length; i++) {
+      var p = World.props[i];
+      if (p.t === "firedoor") {
+        var s = toS(p.x * T, p.y * T);
+        var w = p.w * T, h = p.h * T;
+        if (p.state === "closed") {
+          c.fillStyle = "#332c26";
+          c.fillRect(s.x + 1, s.y, w - 2, h);
+          c.fillStyle = "rgba(0,0,0,0.45)";
+          c.fillRect(s.x + w - 4, s.y, 3, h);
+          // 横向推杠
+          c.fillStyle = "#5a5248";
+          c.fillRect(s.x + 2, s.y + h * 0.48, w - 4, 6);
+          // 警示条
+          c.fillStyle = "rgba(190,150,60,0.16)";
+          for (var k = 0; k < h; k += 26) c.fillRect(s.x + 3, s.y + k + 6, w - 6, 4);
+        } else {
+          // 开了：贴在一边
+          c.fillStyle = "#2b251f";
+          c.fillRect(s.x + w - 7, s.y, 6, h);
+          c.fillStyle = "rgba(120,140,150,0.10)";
+          c.fillRect(s.x, s.y, w - 7, h * 0.16);
+          c.fillRect(s.x, s.y + h * 0.84, w - 7, h * 0.16);
+        }
+      } else if (p.t === "lock") {
+        var s2 = toS(p.x * T, p.y * T);
+        var w2 = p.w * T, h2 = p.h * T;
+        if (p.state === "closed") {
+          // 金属卷帘门：两扇门板 + 中缝 + 读卡器
+          c.fillStyle = "#2a251f";
+          c.fillRect(s2.x, s2.y, w2, h2);
+          c.fillStyle = "#35302a";
+          c.fillRect(s2.x + 2, s2.y + 2, w2 - 4, h2 - 4);
+          c.fillStyle = "rgba(0,0,0,0.55)";
+          c.fillRect(s2.x + w2 / 2 - 1, s2.y, 2, h2);
+          c.fillRect(s2.x, s2.y + h2 * 0.42, w2, 2);
+          // 刷卡器
+          c.fillStyle = "#15130f";
+          c.fillRect(s2.x + w2 - 9, s2.y + h2 * 0.44, 7, 12);
+          var led = 0.45 + 0.55 * Math.abs(Math.sin(t * 2.2));
+          c.fillStyle = "rgba(220,60,70," + led + ")";
+          c.beginPath(); c.arc(s2.x + w2 - 5.5, s2.y + h2 * 0.44 + 3, 1.8, 0, 6.283); c.fill();
+          // 把手
+          c.fillStyle = "#6b645a";
+          c.fillRect(s2.x + 3, s2.y + h2 * 0.62, 3, 14);
+        } else {
+          // 开了：两扇门收在两侧
+          c.fillStyle = "#241f19";
+          c.fillRect(s2.x, s2.y, 4, h2);
+          c.fillRect(s2.x + w2 - 4, s2.y, 4, h2);
+          c.fillStyle = "rgba(90,190,150,0.55)";
+          c.beginPath(); c.arc(s2.x + w2 - 5.5, s2.y + h2 * 0.44 + 3, 2.2, 0, 6.283); c.fill();
+        }
+      } else if (p.t === "key" && p.revealed) {
+        var s3 = toS(p.px, p.py);
+        var pulse = 0.5 + 0.5 * Math.sin(t * 3.4);
+        c.save();
+        c.translate(s3.x, s3.y);
+        c.rotate(-0.4);
+        c.fillStyle = "rgba(230,205,150," + (0.75 + pulse * 0.25) + ")";
+        c.fillRect(-2, -6, 4, 9);
+        c.beginPath(); c.arc(0, -6, 3.4, 0, 6.283); c.fill();
+        c.restore();
+      }
     }
   },
 

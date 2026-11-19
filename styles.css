@@ -85,6 +85,14 @@ html, body {
 .viewers { font-size: 13px; color: #e8e0d0; }
 .viewers span { font-weight: 700; color: #fff; letter-spacing: .02em; }
 .status { font-size: 11px; color: #8d8578; }
+.floor {
+  font-family: var(--mono); font-size: 12px; letter-spacing: .22em;
+  color: #b9ad97; margin-top: 2px;
+}
+.stair-info {
+  font-family: var(--mono); font-size: 12px; letter-spacing: .22em;
+  color: #8d8578; margin: 0 0 24px;
+}
 
 .hud-right {
   position: absolute; top: max(12px, env(safe-area-inset-top)); right: 14px;
@@ -117,7 +125,7 @@ html, body {
 
 /* 弹幕 */
 #danmaku {
-  position: absolute; top: max(64px, calc(env(safe-area-inset-top) + 54px));
+  position: absolute; top: max(118px, calc(env(safe-area-inset-top) + 104px));
   left: 0; right: 0; height: 150px;
   overflow: hidden;
   mask-image: linear-gradient(90deg, transparent, #000 6%, #000 88%, transparent);
