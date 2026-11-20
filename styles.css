@@ -356,6 +356,11 @@ h1 {
 }
 .doc-body p { margin: 0 0 12px; }
 .doc-body em { color: #ddc9a6; font-style: normal; }
+.doc-hint {
+  font-family: var(--sans); font-size: 11px; letter-spacing: .28em;
+  color: rgba(200,190,170,.42);
+  text-align: center; margin: -10px 0 14px;
+}
 .doc-body .sig { text-align: right; color: #8b8173; font-size: 13px; }
 .doc-body .red { color: #e2607a; }
 .doc-body blockquote {

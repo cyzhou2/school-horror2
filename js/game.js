@@ -92,7 +92,7 @@ var Game = {
       });
     };
     on("btnStart", function () { self.startRun(); });
-    on("btnDocClose", function () { self.closeDoc(); });
+    on("btnDocClose", function () { self.advanceDoc(); });
     on("btnRetry", function () { self.retry(); });
     on("btnGiveUp", function () { self.toTitle(); });
     on("btnPublish", function () { self.publishEvidence(); });
@@ -102,6 +102,16 @@ var Game = {
     on("btnStairUp", function () { self.useStairs(1); });
     on("btnStairDown", function () { self.useStairs(-1); });
     on("btnStairClose", function () { self.closeStairs(); });
+
+    // 证据页：空格 / E / 回车都能继续
+    window.addEventListener("keydown", function (e) {
+      if (self.state !== "doc") return;
+      var k = (e.key || "").toLowerCase();
+      if (k === " " || k === "spacebar" || k === "e" || k === "enter") {
+        e.preventDefault();
+        self.advanceDoc();
+      }
+    });
   },
 
   buildPauseEl: function () {
@@ -750,8 +760,10 @@ var Game = {
     if (this.clueCount === 6) {
       this.radioSay("灵灵", "……我知道了。六件都在你手上。", 4);
       this.radioSay("灵灵", "别剪，一条一条发出去。", 4);
-      this.spawnSlowGhost();
     }
+
+    // 第 3 件线索开始，慢鬼就上楼了（不再等到最后）
+    if (this.clueCount >= 3) this.spawnSlowGhost();
 
     if (!this.ghostWoken) {
       this.ghostWoken = true;
@@ -772,6 +784,19 @@ var Game = {
     AudioSys.resume();
   },
 
+  /* 证据页的“继续”：正文还没到底就先滚到底，到底了才关掉 */
+  advanceDoc: function () {
+    var body = document.getElementById("docBody");
+    if (body) {
+      var more = body.scrollHeight - body.clientHeight;
+      if (more > 30 && body.scrollTop < more - 30) {
+        body.scrollTop = body.scrollHeight;
+        return;
+      }
+    }
+    this.closeDoc();
+  },
+
   closeDoc: function () {
     document.getElementById("docScreen").classList.add("hidden");
     this.state = "play";
@@ -783,21 +808,39 @@ var Game = {
     }
   },
 
+  /* 找一个“看不见的地方”刷鬼：离得远、且被墙挡住视线 */
+  findSpawnPoint: function (preferStairs) {
+    var T = CFG.TILE, p = this.player;
+    var cands = [];
+    if (preferStairs) {
+      cands = [{ x: 56, y: 12 }, { x: 6, y: 38 }];
+    } else {
+      for (var y = 2; y < CFG.MAP_H - 2; y += 2) {
+        for (var x = 2; x < CFG.MAP_W - 2; x += 2) {
+          if (World.grid[y][x] === 1) cands.push({ x: x + 0.5, y: y + 0.5 });
+        }
+      }
+    }
+    var hidden = [], far = [];
+    for (var i = 0; i < cands.length; i++) {
+      var wx = cands[i].x * T, wy = cands[i].y * T;
+      var d = Math.sqrt((wx - p.x) * (wx - p.x) + (wy - p.y) * (wy - p.y));
+      if (d < 420) continue;
+      far.push(cands[i]);
+      if (!World.los(p.x, p.y, wx, wy)) hidden.push(cands[i]);
+    }
+    var pool = hidden.length ? hidden : far;
+    if (!pool.length) return null;
+    return pool[Math.floor(Math.random() * pool.length)];
+  },
+
   wakeGhost: function () {
     if (this.ghost.active) return;
     var g = this.ghost;
     var T = CFG.TILE;
     var sp = LEVELS[this.floor].ghostSpawn;
-    // 别刷在玩家脸上：挑离玩家最远的候选点
-    var cands = [{ x: sp.x, y: sp.y }, { x: 5, y: 24 }, { x: 58, y: 24 }, { x: 30, y: 18 }, { x: 30, y: 31 }];
-    var best = cands[0], bestD = -1;
-    for (var i = 0; i < cands.length; i++) {
-      var dx = cands[i].x * T - this.player.x;
-      var dy = cands[i].y * T - this.player.y;
-      var d = dx * dx + dy * dy;
-      if (d > bestD) { bestD = d; best = cands[i]; }
-    }
-    g.spawn(best.x * T, best.y * T);
+    var pt = this.findSpawnPoint(false) || { x: sp.x, y: sp.y };
+    g.spawn(pt.x * T, pt.y * T);
     g.wake();
     g.freezeT = 2.4;
     AudioSys.stinger("wake");
@@ -815,6 +858,7 @@ var Game = {
   onEnterThirdFloor: function () {
     if (this.slowHinted) return;
     this.slowHinted = true;
+    if (this.slowSpawned) return;
     this.toast("楼上有东西在走", "很慢，但没有停", 3400);
     AudioSys.stinger("wake", 0.7);
     AudioSys.heavyStep(true);
@@ -824,20 +868,24 @@ var Game = {
     }, 2500);
   },
 
-  /* 六件证据齐了：楼梯口有东西走下来 */
+  /* 证据过半：它从看不见的那座楼梯间走上来 */
   spawnSlowGhost: function () {
     if (this.slowSpawned) return;
     this.slowSpawned = true;
-    // 从北侧楼梯间里走上来 —— 正好堵住一条上楼的路，逼你走另一侧
-    this.slow.spawn(56 * CFG.TILE, 12 * CFG.TILE, this.floor);
+    var T = CFG.TILE;
+    // 七成从楼梯间上来（有“爬上来”的暗示），三成在别的角落——不固定
+    var pt = Math.random() < 0.7 ? this.findSpawnPoint(true) : null;
+    if (!pt) pt = this.findSpawnPoint(false);
+    if (!pt) pt = { x: 56, y: 12 };
+    this.slow.spawn(pt.x * T, pt.y * T, this.floor);
     AudioSys.heavyStep(true);
     AudioSys.stinger("dead", 0.8);
     this.shake = 0.7;
-    this.toast("楼梯口有东西下来了", "它不会跑，也不会停", 3600);
+    this.toast("楼梯上有东西上来了", "它不会跑，也不会停", 3600);
     var self = this;
     setTimeout(function () {
       if (self.state === "play") {
-        self.live.say("楼下那个上来了", "panic");
+        self.live.say("那脚步声是冲着这边来的", "panic");
         self.live.addHeat(12);
       }
     }, 2200);

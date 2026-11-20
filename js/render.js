@@ -986,8 +986,7 @@ var Renderer = {
     c.restore();
   },
 
-  /* ================= 小地图：雾里只有你自己 ================= */
-  drawMinimap: function (g) {
+  /* ================= 小地图：雾里只有你自己 ================= */  drawMinimap: function (g) {
     if (!this.mmCv) {
       this.mmCv = document.getElementById("minimap");
       if (!this.mmCv) return;
