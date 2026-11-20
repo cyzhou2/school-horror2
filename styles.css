@@ -438,3 +438,34 @@ h1 {
   .objective { max-width: 150px; }
   #danmaku { height: 120px; }
 }
+
+/* ===== 竖屏手机：单独一套排版 ===== */
+@media (max-aspect-ratio: 1/1) {
+  /* 弹幕只保留最上面一小块，别糊满屏幕 */
+  #danmaku { height: 168px; }
+  #danmaku .dm { font-size: 12px; opacity: .75; }
+  /* 房间名缩小、上移，避开拇指区 */
+  #roomName {
+    bottom: 21%;
+    font-size: 15px;
+    letter-spacing: .22em;
+    padding: 4px 14px 4px 16px;
+  }
+  /* 提示条在按钮上方 */
+  #prompt { bottom: 176px; font-size: 12.5px; }
+  #toast { top: 24%; max-width: 86vw; }
+  #toast .big { font-size: 17px; }
+  #radio { top: 106px; left: 10px; max-width: 58vw; font-size: 11.5px; }
+  .heat-bar { width: 76px; }
+  .objective { max-width: 132px; font-size: 11px; }
+  #hud { padding: 8px 10px; }
+  /* 小地图：竖屏挪到右上（按钮区上方），弹幕让开一条通道 */
+  body.touch #minimap, #minimap {
+    top: 110px; right: 8px; bottom: auto;
+    width: 104px; height: 78px; opacity: .88;
+  }
+  #danmaku { padding-right: 120px; }
+  /* 触屏按钮再大一圈 */
+  .tbtn { min-width: 62px; min-height: 62px; font-size: 13px; }
+  #stick { width: 118px; height: 118px; }
+}

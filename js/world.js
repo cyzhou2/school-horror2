@@ -71,7 +71,7 @@ var World = {
       // 低矮家具：挡路，但不挡视线（桌椅、纸箱、洗手台、长条实验台等）
       var low = type === "desk" || type === "box" || type === "counter" ||
         type === "sink" || type === "banner" || type === "barricade" || type === "bench";
-      var dynamic = (type === "firedoor" || type === "lock" || type === "barricade");
+      var dynamic = (type === "firedoor" || type === "lock" || type === "barricade" || type === "hooded");
       var o = {
         idx: idx2, t: type,
         x: p.x, y: p.y, w: p.w || 1, h: p.h || 1,
@@ -85,8 +85,9 @@ var World = {
         py: (p.y + (p.h || 1) / 2) * CFG.TILE,
         dynamic: dynamic,
         low: low,
-        state: dynamic ? (type === "barricade" ? "ready" : "closed") : "static",
+        state: type === "hooded" ? "static" : (dynamic ? (type === "barricade" ? "ready" : "closed") : "static"),
         solid: solid && !dynamic,
+        active: false,
         hiddenInside: false,
         danger: false,
         revealed: false
@@ -115,7 +116,8 @@ var World = {
     for (var y = 0; y < CFG.MAP_H; y++) { this.dyn[y].fill(0); this.dynOp[y].fill(0); }
     this.props.forEach(function (p) {
       if (p.dynamic && p.state === "closed") {
-        this.fillSolid(p, 1, this.dyn);
+        // 锁只挡视线，不挡路：下楼永远自由，上楼由 Game.useStairs 判定
+        if (p.t !== "lock") this.fillSolid(p, 1, this.dyn);
         this.fillSolid(p, 1, this.dynOp);
       }
       if (p.t === "barricade" && p.state === "blocking") {
@@ -325,7 +327,9 @@ var World = {
     var best = null, bestD = range * range;
     for (var i = 0; i < this.props.length; i++) {
       var p = this.props[i];
+      if (p.t === "hooded" && !p.active) continue;
       var inter = p.hide || p.clue || p.decor || p.t === "stairs" ||
+        p.t === "hooded" ||
         (p.t === "firedoor" && p.state !== "broken") ||
         (p.t === "lock" && p.state !== "open") ||
         (p.t === "barricade" && (p.state === "ready" || p.state === "blocking")) ||

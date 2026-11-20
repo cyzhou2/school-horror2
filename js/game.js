@@ -66,11 +66,14 @@ var Game = {
     var aspect = w / h;
     var vw, vh;
     if (aspect >= 1) {
+      // 横屏：高度固定 540，宽度跟着视口走（最多 1180）
       vh = 540;
       vw = Math.round(Math.min(1180, 540 * aspect));
     } else {
-      vw = 540;
-      vh = Math.round(Math.min(1200, 540 / aspect));
+      // 竖屏：宽度固定 340，高度跟着视口（最多 780）——
+      // 手电筒的光能填满大半个屏幕，而不是浮在一大片黑里
+      vw = 340;
+      vh = Math.round(Math.min(780, 340 / aspect));
     }
     if (vw !== CFG.VIEW_W || vh !== CFG.VIEW_H) {
       Renderer.setViewSize(vw, vh);
@@ -97,7 +100,7 @@ var Game = {
     on("btnGiveUp", function () { self.toTitle(); });
     on("btnPublish", function () { self.publishEvidence(); });
     on("btnDelete", function () { self.showEnding("black"); });
-    on("btnHidden", function () { self.showEnding("hidden"); });
+    on("btnRethink", function () { self.closeChoice(); });
     on("btnEndBack", function () { self.toTitle(); });
     on("btnStairUp", function () { self.useStairs(1); });
     on("btnStairDown", function () { self.useStairs(-1); });
@@ -265,6 +268,7 @@ var Game = {
   update: function (dt) {
     var p = this.player, g = this.ghost;
 
+    this.autoMove(dt);
     p.update(dt, this);
 
     this.target = p.hidden ? p.hidingProp : World.nearestProp(p.x, p.y, 52);
@@ -476,7 +480,10 @@ var Game = {
     this.state = "stairs";
     var up = document.getElementById("btnStairUp");
     var down = document.getElementById("btnStairDown");
-    if (up) up.textContent = this.floor >= 2 ? "上天台" : "上楼（" + LEVELS[this.floor + 1].floorLabel + "）";
+    if (up) {
+      var locked = this.floor < 2 && this.doorStates[["lock1", "lock2", "lock3"][this.floor]] !== "open";
+      up.textContent = (this.floor >= 2 ? "上天台" : "上楼（" + LEVELS[this.floor + 1].floorLabel + "）") + (locked ? " · 锁着" : "");
+    }
     if (down) down.classList.toggle("hidden", this.floor <= 0);
     var info = document.getElementById("stairInfo");
     if (info) {
@@ -497,6 +504,15 @@ var Game = {
 
   useStairs: function (dir) {
     var stairId = (this.pendingStair && this.pendingStair.stairId) || "north";
+    // 上楼要本层的钥匙；下楼永远自由
+    if (dir > 0 && this.floor < 2) {
+      var lk = ["lock1", "lock2", "lock3"][this.floor];
+      if (this.doorStates[lk] !== "open") {
+        AudioSys.stinger("locker", 0.7);
+        this.toast("楼梯锁着", LOCKS[lk].need, 2800);
+        return;
+      }
+    }
     this.closeStairs();
     if (dir > 0) {
       if (this.floor >= 2) { this.openChoice(); return; }
@@ -526,6 +542,8 @@ var Game = {
 
     this.curRoom = null;
     this.checkpoint = { x: px, y: py, floor: target };
+    this.syncHooded();
+    this.cancelAutoMove();
 
     // 快鬼不跟着“传送”：换层后它也在这一层重新落位，且不会在你附近
     var gh = this.ghost;
@@ -760,6 +778,7 @@ var Game = {
     }
     if (t.t === "barricade") { this.pushBarricade(t); return; }
     if (t.t === "stairs") { this.openStairs(t); return; }
+    if (t.t === "hooded") { this.talkHooded(); return; }
     if (t.hide) { this.doHide(t); return; }
     if (t.decor) { this.sayFlavor(t); return; }
   },
@@ -788,6 +807,29 @@ var Game = {
     }
   },
 
+  /* 六件齐了，一楼大厅会站着一个人 */
+  syncHooded: function () {
+    var on = this.clueCount >= 6;
+    World.props.forEach(function (p) { if (p.t === "hooded") p.active = on; });
+    if (on && !this.hoodedHinted) {
+      this.hoodedHinted = true;
+      this.toast("大厅里站着一个人", "黑色兜帽。他好像一直在等你", 4600);
+      if (!this.radioLost) this.radioSay("灵灵", "大厅……大厅有人。东西先别发。", 4);
+      this.live.say("一楼大厅有个人！！", "panic");
+    }
+  },
+
+  /* 把证据交给他 = 隐藏结局 */
+  talkHooded: function () {
+    if (this.clueCount < 6) {
+      this.toast("兜帽人", "他摇了摇头，指了指你空着的口袋", 2600);
+      return;
+    }
+    this.state = "ending";
+    AudioSys.stinger("wake", 0.7);
+    this.showEnding("hidden");
+  },
+
   collectClue: function (prop) {
     var id = prop.clue;
     var clue = CLUES[id];
@@ -807,6 +849,7 @@ var Game = {
 
     // 第 3 件线索开始，慢鬼就上楼了（不再等到最后）
     if (this.clueCount >= 3) this.spawnSlowGhost();
+    this.syncHooded();
 
     if (!this.ghostWoken) {
       this.ghostWoken = true;
@@ -1097,18 +1140,155 @@ var Game = {
     this.toast("重新连接", "它记住了你的味道，但没记住你从哪来", 2600);
   },
 
+  /* ================= 点击寻路 ================= */
+  moveTo: function (wx, wy) {
+    if (this.state !== "play" || this.player.hidden) return;
+    var p = this.player;
+    // 隔着关着的门 / 堵着的桌椅：直接说走不到，不做绕一圈的寻路
+    if (World.blockerBetween(p.x, p.y, wx, wy)) {
+      this.movePath = null;
+      this.moveGoal = { x: wx, y: wy, ok: false };
+      AudioSys.stinger("locker", 0.4);
+      this.toast("", "过不去 —— 中间隔着一扇关着的门", 2200);
+      return;
+    }
+    var path = World.findPath(p.x, p.y, wx, wy);
+    if (!path || !path.length) {
+      this.movePath = null;
+      this.moveGoal = { x: wx, y: wy, ok: false };
+      this.toast("", "那边走不到", 1600);
+      return;
+    }
+    this.movePath = path;
+    this.moveGoal = { x: wx, y: wy, ok: true };
+    // 点的是某个互动物（楼梯/锁/线索）就记住它，到了直接对它动手
+    this.moveTarget = World.nearestProp(wx, wy, 90);
+    this.moveStuck = 0;
+  },
+
+  cancelAutoMove: function () {
+    if (!this.movePath && !this.moveGoal) return;
+    this.movePath = null;
+    this.moveGoal = null;
+    this.releaseAutoKeys = true;
+  },
+
+  /* 自动走动 + 路过互动点自动互动 */
+  autoMove: function (dt) {
+    if (this.state !== "play") return;
+    var p = this.player;
+
+    // 离开一段距离后，同一个互动点才能再次触发
+    if (this.autoLast) {
+      var lp = World.props[this.autoLast.idx];
+      if (!lp || Math.sqrt((lp.px - p.x) * (lp.px - p.x) + (lp.py - p.y) * (lp.py - p.y)) > 74) this.autoLast = null;
+    }
+
+    if (!this.movePath || !this.movePath.length) {
+      if (this.moveGoal && this.moveGoal.ok) { this.moveGoal = null; }
+      // 自动走路结束时，把注入的方向键清掉，否则人物会一直走
+      if (this.releaseAutoKeys || this.autoKeysOn) {
+        this.releaseAutoKeys = false;
+        this.autoKeysOn = false;
+        if (!this.player.keysByUser) Input.keys = Object.create(null);
+      }
+      return;
+    }
+
+    var node = this.movePath[0];
+    var dx = node.x - p.x, dy = node.y - p.y;
+    var d = Math.sqrt(dx * dx + dy * dy);
+    if (d < 9) {
+      this.movePath.shift();
+      if (!this.movePath.length) {
+        this.movePath = null;
+        this.moveGoal = null;
+        this.arriveInteract();
+      }
+      return;
+    }
+
+    Input.keys = Object.create(null);
+    this.autoKeysOn = true;
+    if (Math.abs(dx) > 3) Input.keys[dx > 0 ? "d" : "a"] = true;
+    if (Math.abs(dy) > 3) Input.keys[dy > 0 ? "s" : "w"] = true;
+
+    // 卡住就停
+    var moved = Math.abs(p.x - (this.autoPX || 0)) + Math.abs(p.y - (this.autoPY || 0));
+    this.autoPX = p.x; this.autoPY = p.y;
+    if (moved < 0.5) {
+      this.moveStuck = (this.moveStuck || 0) + dt;
+      if (this.moveStuck > 1.0) {
+        this.moveStuck = 0;
+        this.movePath = null;
+        this.moveGoal = null;
+        this.arriveInteract();
+        if (this.state === "play") this.toast("", "路被挡住了", 1600);
+      }
+    } else {
+      this.moveStuck = 0;
+    }
+
+    // 路过可互动的东西就顺手触发
+    this.autoInteract();
+  },
+
+  /* 到达后：优先对付点击时选中的那个东西 */
+  arriveInteract: function () {
+    var mt = this.moveTarget;
+    this.moveTarget = null;
+    if (mt) {
+      if (mt.t === "hooded" && !mt.active) mt = null;
+      else if (mt.t === "lock" && mt.state === "open") mt = null;
+      else if (mt.clue && this.clues[mt.clue]) mt = null;
+    }
+    if (mt) {
+      if (this.autoLast && this.autoLast.idx === mt.idx) return;
+      this.autoLast = { idx: mt.idx };
+      this.target = mt;
+      this.doAction();
+      return;
+    }
+    this.autoInteract(96);
+  },
+
+  autoInteract: function (radius) {
+    if (this.state !== "play") return;
+    var p = this.player;
+    var t = World.nearestProp(p.x, p.y, radius || 54);
+    if (!t) return;
+    // 只自动触发“该自动”的：线索、钥匙、兜帽人、楼梯、锁
+    var want = (t.clue && !this.clues[t.clue]) || t.t === "key" || t.t === "hooded" ||
+      t.t === "stairs" || t.t === "lock";
+    if (!want) return;
+    if (this.autoLast && this.autoLast.idx === t.idx) return;
+    this.autoLast = { idx: t.idx };
+    this.doAction();
+  },
+
   /* ================= 天台抉择 / 结局 ================= */
   openChoice: function () {
     this.state = "choice";
     AudioSys.stinger("door");
+    // 隐藏结局现在走“一楼兜帽人”，这里不再提供
     var hb = document.getElementById("btnHidden");
-    if (hb) hb.classList.toggle("hidden", !(this.liveOnTime < 30));
+    if (hb) hb.classList.add("hidden");
     var cnt = document.getElementById("choiceCount");
     if (cnt) cnt.textContent = this.clueCount + " / 6";
     var el = document.getElementById("choiceScreen");
     if (el) el.classList.remove("hidden");
     this.live.heat = Math.max(this.live.heat, 62);
     this.live.syncHud();
+  },
+
+  /* 上天台前反悔：什么都不选，回到楼里 */
+  closeChoice: function () {
+    var el = document.getElementById("choiceScreen");
+    if (el) el.classList.add("hidden");
+    this.state = "play";
+    this.last = performance.now();
+    Input.clear();
+    this.toast("再想想", "门还开着。你可以回去，也可以再上来", 3200);
   },
 
   publishEvidence: function () {

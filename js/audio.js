@@ -147,40 +147,86 @@ var AudioSys = {
     this.musicT = 3.0;
   },
 
-  /* 稀疏的音符；intensity 0..1（鬼越近越紧绷） */
+  /* 十六分格的旋律（D 小调，音乐盒音色）：[步, 频率, 时长, 音量] */
+  MUSIC_PATTERN: [
+    [0, 440.00, 1.9, 0.085], [2, 349.23, 1.5, 0.062], [3, 329.63, 1.2, 0.050],
+    [5, 293.66, 1.9, 0.075], [7, 220.00, 2.4, 0.060],
+    [8, 523.25, 1.7, 0.070], [10, 466.16, 1.5, 0.058], [11, 440.00, 1.3, 0.050],
+    [13, 349.23, 1.7, 0.062], [15, 329.63, 2.1, 0.055]
+  ],
+  MUSIC_BASS: [[0, 73.42], [6, 82.41], [8, 110.00], [14, 98.00]],
+
+  /* 音乐盒：一个基音 + 一个微弱的八度泛音，快起慢落 */
+  musicBell: function (freq, dur, vol, bright) {
+    var ctx = this.ctx, t = ctx.currentTime;
+    var out = this.musicOut;
+    if (!out) return;
+    var o = ctx.createOscillator();
+    o.type = bright ? "triangle" : "sine";
+    o.frequency.value = freq;
+    var o2 = ctx.createOscillator();
+    o2.type = "sine";
+    o2.frequency.value = freq * 2.002;
+    var g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(vol, t + 0.012);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    var g2 = ctx.createGain();
+    g2.gain.setValueAtTime(0.0001, t);
+    g2.gain.linearRampToValueAtTime(vol * 0.28, t + 0.01);
+    g2.gain.exponentialRampToValueAtTime(0.0001, t + dur * 0.55);
+    o.connect(g); o2.connect(g2);
+    g.connect(out); g2.connect(out);
+    o.start(t); o2.start(t);
+    o.stop(t + dur + 0.1); o2.stop(t + dur + 0.1);
+  },
+
+  /* 低音铺底的一击 */
+  musicBass: function (freq) {
+    var ctx = this.ctx, t = ctx.currentTime;
+    var o = ctx.createOscillator();
+    o.type = "sine"; o.frequency.value = freq;
+    var g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(0.09, t + 0.05);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 3.2);
+    o.connect(g); g.connect(this.musicOut);
+    o.start(t); o.stop(t + 3.3);
+  },
+
+  /* 一个音符格 = 0.44 秒；循环 16 格 */
   musicTick: function (dt, intensity) {
     if (!this.ctx || !this.musicStarted) return;
-    this.musicT -= dt;
-    if (this.musicT > 0) return;
     intensity = intensity || 0;
-    this.musicT = 3.8 + Math.random() * 4.4 - intensity * 2.0;
+    if (this.musicStepT === undefined) this.musicStepT = 0.6;
+    this.musicStepT -= dt;
+    if (this.musicStepT > 0) return;
+    this.musicStepT = 0.46 - intensity * 0.07;
 
-    var ctx = this.ctx, t = ctx.currentTime;
-    // D 小调，掺小二度的不安
-    var scale = [146.83, 155.56, 174.61, 220.00, 233.08, 293.66, 311.13, 440.00];
-    var f = scale[Math.floor(Math.random() * scale.length)];
-    var type = Math.random() < 0.45 ? "sine" : "triangle";
-    var self = this;
+    var step = this.musicStep || 0;
+    var bump = 1 + intensity * 0.45;
 
-    function note(freq, dur, vol, tp) {
-      var o = ctx.createOscillator();
-      o.type = tp; o.frequency.value = freq;
-      var o2 = ctx.createOscillator();
-      o2.type = tp; o2.frequency.value = freq * (1 + (Math.random() * 0.005 - 0.0025));
-      var g = ctx.createGain();
-      g.gain.setValueAtTime(0.0001, t);
-      g.gain.linearRampToValueAtTime(vol, t + 0.03);
-      g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-      o.connect(g); o2.connect(g);
-      g.connect(self.musicOut);
-      o.start(t); o2.start(t);
-      o.stop(t + dur + 0.15); o2.stop(t + dur + 0.15);
+    for (var i = 0; i < this.MUSIC_PATTERN.length; i++) {
+      var n = this.MUSIC_PATTERN[i];
+      if (n[0] !== step) continue;
+      if (Math.random() < 0.08) break;              // 偶尔漏一拍，像发条卡住
+      this.musicBell(n[1], n[2], n[3] * bump, false);
+    }
+    for (var j = 0; j < this.MUSIC_BASS.length; j++) {
+      var b = this.MUSIC_BASS[j];
+      if (b[0] === step) this.musicBass(b[1]);
     }
 
-    note(f, 3.4 + Math.random() * 2.8, 0.062 + intensity * 0.045, type);
-    if (Math.random() < 0.38) note(f * 1.0595, 2.9, 0.032, "sine");          // 小二度
-    if (Math.random() < 0.22) note(f * 2, 4.6, 0.02, "sine");                // 高处的回声
-    if (Math.random() < 0.12 + intensity * 0.2) note(f * 0.5, 5.2, 0.05, "triangle"); // 底下的一层
+    this.musicStep = (step + 1) % 16;
+
+    // 每两轮（32 格）在远处补一声不协和的“回声”
+    if (this.musicStep === 0) {
+      this.musicLoop = (this.musicLoop || 0) + 1;
+      if (this.musicLoop % 2 === 0) {
+        var f = [587.33, 622.25, 466.16, 698.46][Math.floor(Math.random() * 4)];
+        this.musicBell(f, 3.6, 0.03 + intensity * 0.03, false);
+      }
+    }
   },
 
   /* 危险时把音乐整体推近一点 */

@@ -438,6 +438,9 @@ var Renderer = {
     // 光照
     this.drawLight(g);
 
+    // 导航（血红色的路线与终点）
+    this.drawNav(c, g);
+
     // 灰尘
     this.drawMotes(c, g);
 
@@ -516,6 +519,38 @@ var Renderer = {
     var T = this.T, t = this.time;
     for (var i = 0; i < World.props.length; i++) {
       var p = World.props[i];
+      if (p.t === "hooded") {
+        if (!p.active) continue;
+        var hs = toS(p.px, p.py);
+        var bob = Math.sin(t * 1.4) * 1.6;
+        // 影子
+        c.fillStyle = "rgba(0,0,0,0.5)";
+        c.beginPath(); c.ellipse(hs.x, hs.y + 12, 10, 4, 0, 0, 6.283); c.fill();
+        // 黑袍
+        c.fillStyle = "#0d0c0d";
+        c.beginPath();
+        c.moveTo(hs.x - 9, hs.y + 12 + bob);
+        c.quadraticCurveTo(hs.x - 11, hs.y - 6 + bob, hs.x, hs.y - 9 + bob);
+        c.quadraticCurveTo(hs.x + 11, hs.y - 6 + bob, hs.x + 9, hs.y + 12 + bob);
+        c.closePath();
+        c.fill();
+        // 兜帽
+        c.fillStyle = "#151315";
+        c.beginPath();
+        c.arc(hs.x, hs.y - 5 + bob, 6.4, Math.PI * 0.95, Math.PI * 2.05);
+        c.fill();
+        // 兜帽下的两点暗光
+        c.fillStyle = "rgba(210,60,60,0.55)";
+        c.beginPath(); c.arc(hs.x - 2.1, hs.y - 4 + bob, 1.1, 0, 6.283); c.fill();
+        c.beginPath(); c.arc(hs.x + 2.1, hs.y - 4 + bob, 1.1, 0, 6.283); c.fill();
+        // 一圈很淡的红光
+        var hg = c.createRadialGradient(hs.x, hs.y, 0, hs.x, hs.y, 26);
+        hg.addColorStop(0, "rgba(160,24,34,0.16)");
+        hg.addColorStop(1, "rgba(160,24,34,0)");
+        c.fillStyle = hg;
+        c.beginPath(); c.arc(hs.x, hs.y, 26, 0, 6.283); c.fill();
+        continue;
+      }
       if (p.t === "firedoor") {
         var s = toS(p.x * T, p.y * T);
         var w = p.w * T, h = p.h * T;
@@ -983,6 +1018,63 @@ var Renderer = {
     c.fillStyle = "rgba(0,0,0," + (0.04 + 0.04 * Math.sin(this.time * 1.6)) + ")";
     c.fillRect(0, 0, VW, VH);
 
+    c.restore();
+  },
+
+  /* ================= 导航标记：血红色的路线 + 终点 ================= */
+  drawNav: function (c, g) {
+    var goal = g.moveGoal, path = g.movePath;
+    if (!goal && (!path || !path.length)) return;
+    var t = this.time;
+    var cam = g.cam;
+    var pulse = 0.55 + 0.45 * Math.sin(t * 3.6);
+
+    c.save();
+    c.lineCap = "round";
+    c.lineJoin = "round";
+
+    if (path && path.length) {
+      // 路线：断续的血红细线
+      c.strokeStyle = "rgba(190,32,44," + (0.30 + 0.12 * pulse) + ")";
+      c.lineWidth = 2;
+      c.setLineDash([6, 7]);
+      c.lineDashOffset = -t * 26;
+      c.beginPath();
+      var ps = { x: g.player.x - cam.x, y: g.player.y - cam.y };
+      c.moveTo(ps.x, ps.y);
+      for (var i = 0; i < path.length; i += 2) {
+        c.lineTo(path[i].x - cam.x, path[i].y - cam.y);
+      }
+      var last = path[path.length - 1];
+      c.lineTo(last.x - cam.x, last.y - cam.y);
+      c.stroke();
+      c.setLineDash([]);
+    }
+
+    if (goal) {
+      var gx = goal.x - cam.x, gy = goal.y - cam.y;
+      if (goal.ok) {
+        // 终点：血色圆环 + 十字准星
+        c.strokeStyle = "rgba(214,40,52," + (0.55 + 0.35 * pulse) + ")";
+        c.lineWidth = 2;
+        c.beginPath(); c.arc(gx, gy, 11 + pulse * 2.5, 0, 6.283); c.stroke();
+        c.beginPath(); c.arc(gx, gy, 4.5, 0, 6.283); c.stroke();
+        c.beginPath();
+        c.moveTo(gx - 17, gy); c.lineTo(gx - 7, gy);
+        c.moveTo(gx + 7, gy); c.lineTo(gx + 17, gy);
+        c.moveTo(gx, gy - 17); c.lineTo(gx, gy - 7);
+        c.moveTo(gx, gy + 7); c.lineTo(gx, gy + 17);
+        c.stroke();
+      } else {
+        // 走不到：一个血红的叉
+        c.strokeStyle = "rgba(220,40,52,0.85)";
+        c.lineWidth = 3;
+        c.beginPath();
+        c.moveTo(gx - 10, gy - 10); c.lineTo(gx + 10, gy + 10);
+        c.moveTo(gx + 10, gy - 10); c.lineTo(gx - 10, gy + 10);
+        c.stroke();
+      }
+    }
     c.restore();
   },
 

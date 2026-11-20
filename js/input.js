@@ -31,6 +31,10 @@ var Input = {
       if (k === "m") { var m = AudioSys.toggleMute(); Game.toast(m ? "已静音" : "已恢复声音", ""); }
       if (k === "shift") self.runKey = true;
       if (k === "escape" && Game.inGame) Game.togglePause();
+      // 手动按方向键 = 取消点击寻路
+      if (["w", "a", "s", "d", "arrowup", "arrowdown", "arrowleft", "arrowright"].indexOf(k) >= 0) {
+        if (Game.cancelAutoMove) Game.cancelAutoMove();
+      }
     });
     window.addEventListener("keyup", function (e) {
       var k = e.key.toLowerCase();
@@ -42,6 +46,19 @@ var Input = {
       self.runKey = false;
       self.axisX = self.axisY = 0;
     });
+
+    /* ---------- 点击寻路（鼠标 / 触屏都吃） ---------- */
+    var viewEl = document.getElementById("view");
+    if (viewEl) {
+      viewEl.addEventListener("pointerdown", function (e) {
+        if (typeof Game === "undefined" || !Game.inGame || Game.state !== "play") return;
+        var r = viewEl.getBoundingClientRect();
+        if (!r.width || !r.height) return;
+        var sx = (e.clientX - r.left) * (viewEl.width / r.width);
+        var sy = (e.clientY - r.top) * (viewEl.height / r.height);
+        Game.moveTo(sx + Game.cam.x, sy + Game.cam.y);
+      });
+    }
 
     /* ---------- 触屏 ---------- */
     var enableTouch = function () {
@@ -115,6 +132,7 @@ var Input = {
     var kx = dx * k, ky = dy * k;
     this.dom.knob.style.transform = "translate(" + kx.toFixed(1) + "px," + ky.toFixed(1) + "px)";
     var nx = dx / max, ny = dy / max;
+    if (Math.sqrt(nx * nx + ny * ny) > 0.3 && Game.cancelAutoMove) Game.cancelAutoMove();
     var len = Math.sqrt(nx * nx + ny * ny);
     if (len > 1) { nx /= len; ny /= len; }
     if (len < 0.18) { nx = 0; ny = 0; }
