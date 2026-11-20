@@ -274,8 +274,8 @@ var Ghost = {
             bl.state = "used";
             g.doorStates[bl.barId] = "used";
           } else {
-            bl.state = "open";
-            g.doorStates[bl.doorId] = "open";
+            bl.state = "broken";
+            g.doorStates[bl.doorId] = "broken";
           }
           World.refreshDoors();
           AudioSys.stinger("locker", 1);
@@ -631,9 +631,9 @@ var SlowGhost = {
       g.doorStates[prop.barId] = "used";
       g.toast("", "桌椅被它推开了", 2000);
     } else {
-      prop.state = "open";
-      g.doorStates[prop.doorId] = "open";
-      g.toast("", "防火门被撞开了", 2000);
+      prop.state = "broken";
+      g.doorStates[prop.doorId] = "broken";
+      g.toast("", "防火门被撞开了 —— 合不上了", 2000);
     }
     World.refreshDoors();
     AudioSys.stinger("dead", 1);

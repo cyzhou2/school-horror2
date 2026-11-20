@@ -437,6 +437,21 @@ var Renderer = {
           // 警示条
           c.fillStyle = "rgba(190,150,60,0.16)";
           for (var k = 0; k < h; k += 26) c.fillRect(s.x + 3, s.y + k + 6, w - 6, 4);
+        } else if (p.state === "broken") {
+          // 废门：门板歪着，铰链处裂开
+          c.fillStyle = "#2b251f";
+          c.fillRect(s.x + w - 9, s.y, 8, h * 0.72);
+          c.fillRect(s.x + 2, s.y + h * 0.28, 7, h * 0.72);
+          c.strokeStyle = "rgba(0,0,0,0.6)";
+          c.lineWidth = 1;
+          for (var q2 = 0; q2 < 5; q2++) {
+            c.beginPath();
+            c.moveTo(s.x + 2 + q2 * 2, s.y + h * 0.3);
+            c.lineTo(s.x + 4 + q2 * 2, s.y + h * 0.34);
+            c.stroke();
+          }
+          c.fillStyle = "rgba(120,140,150,0.06)";
+          c.fillRect(s.x, s.y, w - 9, h);
         } else {
           // 开了：贴在一边
           c.fillStyle = "#2b251f";
@@ -507,12 +522,30 @@ var Renderer = {
       } else if (p.t === "key" && p.revealed) {
         var s3 = toS(p.px, p.py);
         var pulse = 0.5 + 0.5 * Math.sin(t * 3.4);
+        // 竖直光柱：隔着半个房间也能看到
+        var beam = c.createLinearGradient(s3.x, s3.y - 80, s3.x, s3.y + 8);
+        beam.addColorStop(0, "rgba(226,196,120,0)");
+        beam.addColorStop(0.65, "rgba(226,196,120,0.10)");
+        beam.addColorStop(1, "rgba(240,214,150," + (0.24 + pulse * 0.14) + ")");
+        c.fillStyle = beam;
+        c.fillRect(s3.x - 8, s3.y - 80, 16, 88);
+        // 光晕
+        var g3 = c.createRadialGradient(s3.x, s3.y, 0, s3.x, s3.y, 28);
+        g3.addColorStop(0, "rgba(240,214,150," + (0.36 + pulse * 0.2) + ")");
+        g3.addColorStop(1, "rgba(240,214,150,0)");
+        c.fillStyle = g3;
+        c.beginPath(); c.arc(s3.x, s3.y, 28, 0, 6.283); c.fill();
+        // 钥匙本体（比线索大一圈）
         c.save();
         c.translate(s3.x, s3.y);
-        c.rotate(-0.4);
-        c.fillStyle = "rgba(230,205,150," + (0.75 + pulse * 0.25) + ")";
-        c.fillRect(-2, -6, 4, 9);
-        c.beginPath(); c.arc(0, -6, 3.4, 0, 6.283); c.fill();
+        c.rotate(-0.5);
+        c.fillStyle = "rgba(244,220,160,0.96)";
+        c.strokeStyle = "rgba(24,18,12,0.85)";
+        c.lineWidth = 1.6;
+        c.beginPath(); c.arc(0, -8, 4.6, 0, 6.283); c.fill(); c.stroke();
+        c.fillRect(-1.5, -4, 3, 14);
+        c.fillRect(1.2, 5.5, 4.2, 2);
+        c.fillRect(1.2, 9, 3.4, 2);
         c.restore();
       } else if (p.t === "battery" && !p.taken) {
         // 备用电池：一小节发亮的圆柱
@@ -754,7 +787,7 @@ var Renderer = {
       var pr = World.props[i];
       var glowR = 0;
       if (pr.clue && !g.clues[pr.clue]) glowR = 62;
-      else if (pr.t === "key" && pr.revealed) glowR = 46;
+      else if (pr.t === "key" && pr.revealed) glowR = 74;
       else if (pr.t === "battery" && !pr.taken) glowR = 40;
       else if (pr.t === "exit") glowR = 96;
       if (!glowR) continue;

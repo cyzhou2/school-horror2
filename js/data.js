@@ -69,9 +69,10 @@ var LEVELS = [
       /* 保安室：记录与画面（行政） */
       { t: "counter", x: 20, y: 8, w: 5, h: 1 },
       { t: "counter", x: 28, y: 5, w: 3, h: 4 },
+      { t: "board", x: 20, y: 5, w: 4, h: 1, decor: true, label: "看值班表" },
       { t: "locker", x: 20, y: 14, w: 1, h: 1, hide: true, label: "躲进档案柜" },
       { t: "clue", x: 22.4, y: 9.1, clue: "tape", label: "查看监控主机" },
-      { t: "key", x: 22.5, y: 7.4, key: "key1", label: "摘下钥匙串" },
+      { t: "key", x: 21.5, y: 6.4, key: "key1", label: "摘下钥匙串" },
       /* 器材室：物证（拖把架上的缺口） */
       { t: "box", x: 35, y: 25, w: 2, h: 1 },
       { t: "box", x: 35, y: 29, w: 2, h: 1 },
@@ -219,9 +220,9 @@ var LEVELS = [
 
 /* ---------- 钥匙：每层两件线索齐了才会“想明白它在哪” ---------- */
 var KEYS = {
-  key1: { name: "保安室钥匙串", floor: 0, need: ["tape", "mop"], toast: "钥匙串就挂在值班表下面的钩子上" },
-  key2: { name: "教务处门禁卡", floor: 1, need: ["letter", "rec"], toast: "门禁卡被压在成绩单底下" },
-  key3: { name: "配电箱保险丝", floor: 2, need: ["phone", "uniform"], toast: "保险丝被换下来搁在箱子上" }
+  key1: { name: "保安室钥匙串", short: "钥匙串", room: "保安室", floor: 0, need: ["tape", "mop"], toast: "钥匙串就挂在值班表下面的钩子上" },
+  key2: { name: "教务处门禁卡", short: "门禁卡", room: "教务处", floor: 1, need: ["letter", "rec"], toast: "门禁卡被压在成绩单底下" },
+  key3: { name: "配电箱保险丝", short: "保险丝", room: "配电间", floor: 2, need: ["phone", "uniform"], toast: "保险丝被换下来搁在箱子上" }
 };
 
 /* ---------- 锁 ---------- */

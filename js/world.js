@@ -307,7 +307,8 @@ var World = {
     for (var i = 0; i < this.props.length; i++) {
       var p = this.props[i];
       var inter = p.hide || p.clue || p.decor || p.t === "stairs" ||
-        p.t === "firedoor" || (p.t === "lock" && p.state !== "open") ||
+        (p.t === "firedoor" && p.state !== "broken") ||
+        (p.t === "lock" && p.state !== "open") ||
         (p.t === "barricade" && p.state === "ready") ||
         (p.t === "battery" && !p.taken) ||
         (p.key && p.revealed);

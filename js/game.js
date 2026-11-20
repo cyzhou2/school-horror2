@@ -409,7 +409,7 @@ var Game = {
       if (p.dynamic) {
         var id = p.t === "firedoor" ? p.doorId : (p.t === "lock" ? p.lock : p.barId);
         var st = self.doorStates[id];
-        if (p.t === "firedoor") p.state = st === "closed" ? "closed" : "open";
+        if (p.t === "firedoor") p.state = st === "closed" ? "closed" : (st === "broken" ? "broken" : "open");
         else if (p.t === "lock") p.state = st === "open" ? "open" : "closed";
         else p.state = st || "ready";
       }
@@ -520,7 +520,11 @@ var Game = {
       World.props.forEach(function (p) {
         if (p.t === "key" && p.key === k) p.revealed = true;
       });
-      this.toast("想起来了", KEYS[k].toast + " —— 去拿" + KEYS[k].name, 3400);
+      var K = KEYS[k];
+      this.toast("想起来了", K.toast + " —— 回" + K.room + "去拿" + K.name, 4200);
+      this.live.say(K.room + "！钥匙在" + K.room + "！", "hot");
+      this.live.say(K.name + "！别漏了", "hot");
+      if (!this.radioLost) this.radioSay("灵灵", K.room + "，值班表那边，快拿。", 4);
       this.updateObjective();
     }
   },
@@ -554,25 +558,35 @@ var Game = {
   },
 
   /* ================= 门 ================= */
+  /* 防火门：只能关一次。硬拉开或撞开之后就是废门，关不上了 */
   toggleFireDoor: function (p) {
+    if (p.state === "broken") {
+      this.toast("", "门框被撞变形了，合不上", 1600);
+      return;
+    }
     var T = CFG.TILE;
     var rx = p.x * T, ry = p.y * T, rw = p.w * T, rh = p.h * T;
     var px = this.player.x, py = this.player.y, r = this.player.r + 2;
     var over = px + r > rx && px - r < rx + rw && py + r > ry && py - r < ry + rh;
 
     if (p.state === "closed") {
-      p.state = "open";
-      this.doorStates[p.doorId] = "open";
-      AudioSys.stinger("door", 0.7);
-      this.toast("", "防火门拉开了", 1500);
-    } else {
-      if (over) { this.toast("", "你正站在门里，关不上", 1500); return; }
-      p.state = "closed";
-      this.doorStates[p.doorId] = "closed";
+      // 硬拉开 = 铰链报废，这次之后再也关不上
+      p.state = "broken";
+      this.doorStates[p.doorId] = "broken";
+      World.refreshDoors();
       AudioSys.hide(true);
       this.emitNoise(p.px, p.py, CFG.NOISE_ACT, true);
-      this.toast("", "防火门关上 —— 它撞开要几秒", 2000);
+      this.toast("", "你把门硬拉开了 —— 铰链坏了，这扇门关不上了", 2800);
+      return;
     }
+
+    // open -> closed（一次性）
+    if (over) { this.toast("", "你正站在门里，关不上", 1500); return; }
+    p.state = "closed";
+    this.doorStates[p.doorId] = "closed";
+    AudioSys.hide(true);
+    this.emitNoise(p.px, p.py, CFG.NOISE_ACT, true);
+    this.toast("", "防火门关上 —— 只能挡这一次", 2200);
     World.refreshDoors();
   },
 
@@ -1065,7 +1079,7 @@ var Game = {
     if (n < 2) {
       txt = now + "：找齐 2 件线索（" + n + "/2）";
     } else if (!this.keys[keyId]) {
-      txt = "拿到" + KEYS[keyId].name;
+      txt = "回" + KEYS[keyId].room + "拿" + KEYS[keyId].short;
     } else if (this.doorStates[lockId] !== "open") {
       txt = "用" + KEYS[keyId].name + "打开" + LOCKS[lockId].name;
     } else if (f < 2) {
