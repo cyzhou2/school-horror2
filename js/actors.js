@@ -457,10 +457,11 @@ var Ghost = {
   },
 
   pickWaypoint: function (g) {
-    // 路上有堵着的门 / 桌椅：先去把它砸开（不是死盯，按概率优先）
-    if (Math.random() < 0.6) {
-      var bar = this.nearestBarrier(g);
-      if (bar) {
+    // 附近有堵着的门 / 桌椅：先把它砸开（14 格内算“路上遇到”）
+    var bar = this.nearestBarrier(g);
+    if (bar) {
+      var bd = Math.sqrt((bar.px - this.x) * (bar.px - this.x) + (bar.py - this.y) * (bar.py - this.y));
+      if (bd < 460) {
         this.barrierProp = bar;
         this.path = [];
         this.waypoint = null;
