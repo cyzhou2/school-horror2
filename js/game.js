@@ -546,22 +546,7 @@ var Game = {
     this.cancelAutoMove();
 
     // 快鬼不跟着“传送”：换层后它也在这一层重新落位，且不会在你附近
-    var gh = this.ghost;
-    if (gh.active) {
-      var gp = this.findSpawnPoint(false) || LEVELS[target].ghostSpawn;
-      gh.x = gp.x * CFG.TILE;
-      gh.y = gp.y * CFG.TILE;
-      gh.path = []; gh.pathI = 0;
-      gh.state = "patrol";
-      gh.waypoint = null;
-      gh.huntProp = null;
-      gh.barrierProp = null;
-      gh.breaking = null;
-      gh.breakT = 0;
-      gh.lostT = 0;
-      gh.trail.length = 0;
-      gh.freezeT = 1.4;
-    }
+    if (this.ghost.active) this.resetGhostPosition(15);
 
     if (this.ghostWoken) {
       var gs = LEVELS[target].ghostSpawn;
@@ -1099,10 +1084,7 @@ var Game = {
     this.player.stamina = 100;
 
     var g = this.ghost;
-    var gs = LEVELS[this.floor].ghostSpawn;
-    g.x = gs.x * CFG.TILE;
-    g.y = gs.y * CFG.TILE;
-    g.path = []; g.pathI = 0; g.trail = []; g.huntProp = null;
+    this.resetGhostPosition(15);
     g.state = this.ghostWoken ? "patrol" : "sleep";
     g.active = this.ghostWoken;
     g.stuckT = 0;
@@ -1140,6 +1122,49 @@ var Game = {
     this.toast("重新连接", "它记住了你的味道，但没记住你从哪来", 2600);
   },
 
+  /* 换层 / 复活 / 天台暂停：把快鬼放到离玩家足够远、且看不见的地方 */
+  placeGhostAway: function (minTiles) {
+    var g = this.ghost, T = CFG.TILE, p = this.player;
+    minTiles = minTiles || 13;
+    var best = null, bestD = 0;
+    for (var k = 0; k < 30; k++) {
+      var pt = this.findSpawnPoint(false);
+      if (!pt) break;
+      var wx = pt.x * T, wy = pt.y * T;
+      var d = Math.sqrt((wx - p.x) * (wx - p.x) + (wy - p.y) * (wy - p.y)) / T;
+      if (d >= minTiles && !World.los(p.x, p.y, wx, wy)) return pt;
+      if (d > bestD) { bestD = d; best = pt; }
+    }
+    // 兜底：四条走廊腿里最远的那个点
+    var fb = [{ x: 30, y: 18 }, { x: 30, y: 31 }, { x: 5, y: 24 }, { x: 58, y: 24 }, { x: 50, y: 18 }, { x: 10, y: 31 }];
+    var pick = fb[0], pd = -1;
+    for (var i = 0; i < fb.length; i++) {
+      var dx = fb[i].x * T - p.x, dy = fb[i].y * T - p.y;
+      var dd = dx * dx + dy * dy;
+      if (dd > pd) { pd = dd; pick = fb[i]; }
+    }
+    if (best && Math.sqrt(bestD * bestD) > Math.sqrt(pd) / T) return best;
+    return pick;
+  },
+
+  /* 重新落位：位置、状态、路径一起重置 */
+  resetGhostPosition: function (minTiles) {
+    var g = this.ghost, T = CFG.TILE;
+    var pt = this.placeGhostAway(minTiles);
+    g.x = pt.x * T;
+    g.y = pt.y * T;
+    g.path = []; g.pathI = 0;
+    g.state = "patrol";
+    g.waypoint = null;
+    g.huntProp = null;
+    g.barrierProp = null;
+    g.breaking = null;
+    g.breakT = 0;
+    g.lostT = 0;
+    g.trail.length = 0;
+    g.freezeT = 1.4;
+  },
+
   /* ================= 点击寻路 ================= */
   moveTo: function (wx, wy) {
     if (this.state !== "play" || this.player.hidden) return;
@@ -1161,8 +1186,16 @@ var Game = {
     }
     this.movePath = path;
     this.moveGoal = { x: wx, y: wy, ok: true };
-    // 点的是某个互动物（楼梯/锁/线索）就记住它，到了直接对它动手
-    this.moveTarget = World.nearestProp(wx, wy, 90);
+    // 点的是“可以自动处理”的东西（楼梯/锁/线索/钥匙/兜帽人）才记住；
+    // 防火门、桌椅、柜子这些要玩家自己决定，绝不自动碰
+    var cand = World.nearestProp(wx, wy, 90);
+    if (cand) {
+      var autoOk = (cand.clue && !this.clues[cand.clue]) || cand.t === "key" ||
+        cand.t === "hooded" || cand.t === "stairs" || cand.t === "lock";
+      this.moveTarget = autoOk ? cand : null;
+    } else {
+      this.moveTarget = null;
+    }
     this.moveStuck = 0;
   },
 
@@ -1241,8 +1274,7 @@ var Game = {
       if (mt.t === "hooded" && !mt.active) mt = null;
       else if (mt.t === "lock" && mt.state === "open") mt = null;
       else if (mt.clue && this.clues[mt.clue]) mt = null;
-    }
-    if (mt) {
+    }    if (mt) {
       if (this.autoLast && this.autoLast.idx === mt.idx) return;
       this.autoLast = { idx: mt.idx };
       this.target = mt;
@@ -1270,6 +1302,15 @@ var Game = {
   openChoice: function () {
     this.state = "choice";
     AudioSys.stinger("door");
+    // 这是叙事暂停：把鬼挪远，免得“再想想”回来时它就在你脸上
+    this.resetGhostPosition(15);
+    if (this.slow.active) {
+      var sp = this.placeGhostAway(10);
+      this.slow.x = sp.x * CFG.TILE;
+      this.slow.y = sp.y * CFG.TILE;
+      this.slow.path = [];
+      this.slow.freezeT = 2.0;
+    }
     // 隐藏结局现在走“一楼兜帽人”，这里不再提供
     var hb = document.getElementById("btnHidden");
     if (hb) hb.classList.add("hidden");
