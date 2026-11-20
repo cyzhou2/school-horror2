@@ -1,14 +1,16 @@
 # 封校第七十三天 · 后夜直播
 
+**在线玩：<https://cyzhou2.github.io/school-horror2/>**
+
 一个网页恐怖小游戏：一支为了流量翻进封闭中学的直播小队，在一栋三层教学楼里找齐六件证据，顺便被“她们”追。
 
 - **双击 `index.html` 就能玩**（纯前端，零依赖、零安装、不联网）
 - 键盘 + 手机触屏都能玩，一周目约 15–20 分钟
 - 画面与音效全部由代码实时生成，没有外部图片/音频文件
 
-> 当前工作区在 **v2** 分支。v1（单层、三线索、一只鬼）在 `main` 分支与 `v1.0` 标签里，随时 `git checkout main` 回去。
+> 仓库：`cyzhou2/school-horror2`（当前版本 v4）。v1（单层、三线索、一只鬼）在旧仓库 `cyzhou2/school-horror`。
 
-![走廊](screenshots/v2-lock.png)
+![走廊](screenshots/v4-hud.png)
 
 ---
 
