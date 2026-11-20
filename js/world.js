@@ -307,10 +307,15 @@ var World = {
       var isDoor = p.t === "firedoor" && p.state === "closed";
       var isBar = p.t === "barricade" && p.state === "blocking";
       if (!isDoor && !isBar) continue;
+      var r = p.block || { x: p.x, y: p.y, w: p.w, h: p.h };
+      var cx = (r.x + r.w / 2) * this.T;
+      var y0 = r.y * this.T, y1 = (r.y + r.h) * this.T;
       // 目标分别在门的两侧
-      if ((ax - p.px) * (bx - p.px) >= 0) continue;
-      if (Math.abs(ay - p.py) > 130 || Math.abs(by - p.py) > 130) continue;
-      var d = Math.abs(ax - p.px);
+      if ((ax - cx) * (bx - cx) >= 0) continue;
+      // 线段与门的高度范围有交叠
+      var lo = Math.min(ay, by) - 40, hi = Math.max(ay, by) + 40;
+      if (hi < y0 || lo > y1) continue;
+      var d = Math.abs(ax - cx);
       if (d < bestD) { bestD = d; best = p; }
     }
     return best;

@@ -110,6 +110,85 @@ var AudioSys = {
     this.wind = wg;
   },
 
+  /* ---------------- 背景音乐：稀疏的木箱音 + 低频铺底 ---------------- */
+  startMusic: function () {
+    if (this.musicStarted || !this.ctx) return;
+    this.musicStarted = true;
+    var ctx = this.ctx, t = ctx.currentTime;
+
+    var out = ctx.createGain();
+    out.gain.value = 0.0;
+    out.gain.linearRampToValueAtTime(1.0, t + 5);
+    out.connect(this.master);
+
+    // 空间：短延迟 + 反馈，听起来像空教室里的回声
+    var lp = ctx.createBiquadFilter();
+    lp.type = "lowpass"; lp.frequency.value = 2400;
+    out.connect(lp); lp.connect(this.master);
+
+    var dl = ctx.createDelay(1.5);
+    dl.delayTime.value = 0.46;
+    var fb = ctx.createGain(); fb.gain.value = 0.34;
+    var wet = ctx.createGain(); wet.gain.value = 0.36;
+    lp.connect(dl); dl.connect(fb); fb.connect(dl); dl.connect(wet); wet.connect(this.master);
+
+    // 极低踏板音，缓慢漂移
+    var ped = ctx.createOscillator();
+    ped.type = "sine"; ped.frequency.value = 36.7;
+    var pg = ctx.createGain(); pg.gain.value = 0.06;
+    var plfo = ctx.createOscillator(); plfo.frequency.value = 0.045;
+    var plg = ctx.createGain(); plg.gain.value = 1.5;
+    plfo.connect(plg); plg.connect(ped.frequency);
+    ped.connect(pg); pg.connect(out);
+    ped.start(t); plfo.start(t);
+
+    this.musicOut = out;
+    this.musicPed = pg;
+    this.musicT = 3.0;
+  },
+
+  /* 稀疏的音符；intensity 0..1（鬼越近越紧绷） */
+  musicTick: function (dt, intensity) {
+    if (!this.ctx || !this.musicStarted) return;
+    this.musicT -= dt;
+    if (this.musicT > 0) return;
+    intensity = intensity || 0;
+    this.musicT = 3.8 + Math.random() * 4.4 - intensity * 2.0;
+
+    var ctx = this.ctx, t = ctx.currentTime;
+    // D 小调，掺小二度的不安
+    var scale = [146.83, 155.56, 174.61, 220.00, 233.08, 293.66, 311.13, 440.00];
+    var f = scale[Math.floor(Math.random() * scale.length)];
+    var type = Math.random() < 0.45 ? "sine" : "triangle";
+    var self = this;
+
+    function note(freq, dur, vol, tp) {
+      var o = ctx.createOscillator();
+      o.type = tp; o.frequency.value = freq;
+      var o2 = ctx.createOscillator();
+      o2.type = tp; o2.frequency.value = freq * (1 + (Math.random() * 0.005 - 0.0025));
+      var g = ctx.createGain();
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.linearRampToValueAtTime(vol, t + 0.03);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      o.connect(g); o2.connect(g);
+      g.connect(self.musicOut);
+      o.start(t); o2.start(t);
+      o.stop(t + dur + 0.15); o2.stop(t + dur + 0.15);
+    }
+
+    note(f, 3.4 + Math.random() * 2.8, 0.062 + intensity * 0.045, type);
+    if (Math.random() < 0.38) note(f * 1.0595, 2.9, 0.032, "sine");          // 小二度
+    if (Math.random() < 0.22) note(f * 2, 4.6, 0.02, "sine");                // 高处的回声
+    if (Math.random() < 0.12 + intensity * 0.2) note(f * 0.5, 5.2, 0.05, "triangle"); // 底下的一层
+  },
+
+  /* 危险时把音乐整体推近一点 */
+  musicLevel: function (v) {
+    if (!this.ctx || !this.musicPed) return;
+    this.musicPed.gain.linearRampToValueAtTime(0.06 + v * 0.05, this.now() + 1.2);
+  },
+
   /* 环境音量随热度/危险变化 */
   ambienceLevel: function (v) {
     if (!this.ctx || !this.drone) return;

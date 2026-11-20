@@ -131,6 +131,7 @@ var Ghost = {
   spawnX: 0, spawnY: 0,
   huntProp: null,
   huntT: 0,
+  barrierProp: null,
   freezeT: 0,
   breakT: 0,
   breaking: null,
@@ -146,6 +147,7 @@ var Ghost = {
     this.path = [];
     this.trail = [];
     this.huntProp = null;
+    this.barrierProp = null;
     this.freezeT = 0;
   },
 
@@ -198,6 +200,15 @@ var Ghost = {
     prop.dangerT = 0;
   },
 
+  /* 它亲眼看见你把门关上 / 把桌椅推过去 */
+  sawBarrier: function (g, prop) {
+    if (!this.active) return;
+    if (this.state === "chase" || this.state === "hunt") return;
+    this.barrierProp = prop;
+    this.path = [];
+    this.breaking = null;
+  },
+
   update: function (dt, g) {
     if (!this.active) return;
     if (World.circleHits(this.x, this.y, this.r)) {
@@ -225,7 +236,12 @@ var Ghost = {
         break;
       case "search":
         this.searchT -= dt;
-        if (this.searchT <= 0) { this.state = "patrol"; this.path = []; }
+        // 没亲眼看见你躲进去：它不会在柜子边傻站着，直接回去巡逻
+        if (g.player.hidden || this.searchT <= 0) {
+          this.state = "patrol";
+          this.path = [];
+          this.waypoint = null;
+        }
         break;
       case "hunt":
         var hp = this.huntProp;
@@ -265,31 +281,56 @@ var Ghost = {
       return;
     }
 
-    // 被关上的门挡住：它也会撞门，只是比慢鬼快
-    if (this.state === "chase" && !this.path.length) {
-      var bl = World.blockerBetween(this.x, this.y, p.x, p.y);
-      if (bl) {
-        this.breaking = bl;
+    // 门 / 桌椅挡路：巡逻、搜寻、追人时都会去砸
+    if (this.barrierProp && (this.barrierProp.state === "broken" || this.barrierProp.state === "used" || this.barrierProp.state === "open")) {
+      this.barrierProp = null;
+    }
+    var blk = this.barrierProp;
+    if (!blk) {
+      var aim = null;
+      if (this.state === "chase") aim = { x: p.x, y: p.y };
+      else if (!this.path.length) aim = this.waypoint || this.target;
+      if (aim) blk = World.blockerBetween(this.x, this.y, aim.x, aim.y);
+    }
+    if (blk) {
+      var br = blk.block || { x: blk.x, y: blk.y, w: blk.w, h: blk.h };
+      var bcx = (br.x + br.w / 2) * CFG.TILE;
+      var bcy = (br.y + br.h / 2) * CFG.TILE;
+      var bd = Math.sqrt((bcx - this.x) * (bcx - this.x) + (bcy - this.y) * (bcy - this.y));
+      if (bd > 76) {
+        // 先走到门前
+        this.breaking = null;
+        this.repathT -= dt;
+        if (!this.path.length || this.repathT <= 0) {
+          this.path = World.findPath(this.x, this.y, bcx, bcy);
+          this.pathI = 0;
+          this.repathT = 0.5;
+        }
+      } else {
+        this.breaking = blk;
+        this.path = [];
         this.breakT += dt;
-        if (this.breakT > 3.5) {
-          if (bl.t === "barricade") {
-            bl.state = "used";
-            g.doorStates[bl.barId] = "used";
+        if (this.breakT > 3.0) {
+          if (blk.t === "barricade") {
+            blk.state = "used";
+            g.doorStates[blk.barId] = "used";
           } else {
-            bl.state = "broken";
-            g.doorStates[bl.doorId] = "broken";
+            blk.state = "broken";
+            g.doorStates[blk.doorId] = "broken";
           }
           World.refreshDoors();
           AudioSys.stinger("locker", 1);
           g.shake = Math.min(1, g.shake + 0.4);
           this.breakT = 0;
           this.breaking = null;
+          this.barrierProp = null;
         }
         return;
       }
+    } else {
+      this.breakT = 0;
+      this.breaking = null;
     }
-    this.breakT = 0;
-    this.breaking = null;
 
     this.moveAlong(dt, g);
 
@@ -402,7 +443,30 @@ var Ghost = {
     this.x = np.x; this.y = np.y;
   },
 
+  nearestBarrier: function (g) {
+    var best = null, bd = 1e9;
+    for (var i = 0; i < World.props.length; i++) {
+      var p = World.props[i];
+      var isDoor = p.t === "firedoor" && p.state === "closed";
+      var isBar = p.t === "barricade" && p.state === "blocking";
+      if (!isDoor && !isBar) continue;
+      var d = Math.sqrt((p.px - this.x) * (p.px - this.x) + (p.py - this.y) * (p.py - this.y));
+      if (d < bd) { bd = d; best = p; }
+    }
+    return best;
+  },
+
   pickWaypoint: function (g) {
+    // 路上有堵着的门 / 桌椅：先去把它砸开（不是死盯，按概率优先）
+    if (Math.random() < 0.6) {
+      var bar = this.nearestBarrier(g);
+      if (bar) {
+        this.barrierProp = bar;
+        this.path = [];
+        this.waypoint = null;
+        return;
+      }
+    }
     var pts = [
       { x: 10 * 32, y: 18 * 32 },
       { x: 30 * 32, y: 18 * 32 },
@@ -564,18 +628,23 @@ var SlowGhost = {
       this.stuckT = 0;
     }
 
-    // 躲在柜子里：它会在门口数到 6
+    // 躲在柜子里：它直接把柜门扯开
     if (hidden) {
       var dd = Math.hypot(p.hidingProp.px - this.x, p.hidingProp.py - this.y);
       if (dd < 54) {
         this.countT += dt;
         this.hitT -= dt;
         if (this.hitT <= 0) {
-          this.hitT = 1.0;
+          this.hitT = 0.85;
           AudioSys.heart(1);
           AudioSys.stinger("locker", 0.7);
+          AudioSys.staticBurst();
+          g.shake = Math.min(1, g.shake + 0.18);
+          if (this.countT > 0.8) {
+            g.toast("", "柜门被从外面抓住了", 1500);
+          }
         }
-        if (this.countT >= CFG.SLOW_HIDE_COUNT) g.die("它数完了");
+        if (this.countT >= CFG.SLOW_HIDE_COUNT) g.die("它把柜门扯开了");
       } else {
         this.countT = 0;
       }

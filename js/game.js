@@ -128,6 +128,7 @@ var Game = {
   startRun: function () {
     AudioSys.resume();
     AudioSys.startAmbience();
+    AudioSys.startMusic();
 
     this.hideAllOverlays();
     this.clues = { tape: false, log: false, letter: false, rec: false, phone: false, uniform: false };
@@ -374,6 +375,11 @@ var Game = {
         this.shake = Math.min(1, this.shake + near * 0.05);
       }
     }
+
+    // 背景音乐：鬼越近越压抑
+    var musI = nearestGhost < 620 ? Math.max(0, 1 - nearestGhost / 620) : 0;
+    AudioSys.musicTick(dt, musI);
+    AudioSys.musicLevel(musI);
     if (g.active) {
       this.flickerT -= dt;
       if (this.flickerT <= 0) {
@@ -609,6 +615,20 @@ var Game = {
     this.emitNoise(p.px, p.py, CFG.NOISE_ACT, true);
     this.toast("", "防火门关上 —— 只能挡这一次", 2200);
     World.refreshDoors();
+    this.ghostSawBarrier(p);
+  },
+
+  /* 它看到了吗：看得见你关门，就会主动来砸 */
+  ghostSawBarrier: function (prop) {
+    var g = this.ghost;
+    if (!g.active) return;
+    var p = this.player;
+    var d = Math.sqrt((p.x - g.x) * (p.x - g.x) + (p.y - g.y) * (p.y - g.y));
+    if (d > g.sightRange(this)) return;
+    if (!World.los(g.x, g.y, p.x, p.y)) return;
+    g.sawBarrier(this, prop);
+    this.toast("", "它看见你关门了", 1800);
+    AudioSys.stinger("see", 0.5);
   },
 
   pushBarricade: function (p) {
@@ -638,6 +658,7 @@ var Game = {
     AudioSys.stinger("door", 0.7);
     this.emitNoise(p.px, p.py, CFG.NOISE_RUN, true);
     this.toast("", "桌椅横在走廊里 —— 它得撞一阵子", 2400);
+    this.ghostSawBarrier(p);
   },
 
   tryLock: function (p) {
