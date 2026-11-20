@@ -21,6 +21,8 @@ var Game = {
   floor: 0,
 
   lightOn: true,
+  battery: 3,
+  batteryTaken: {},
   lightFlicker: false,
   flickerT: 0,
   flashRed: 0,
@@ -137,6 +139,8 @@ var Game = {
     this.slowSpawned = false;
     this.slowHinted = false;
     this.slow.reset();
+    this.battery = 3;
+    this.batteryTaken = {};
 
     this.floor = 0;
     World.build(0);
@@ -366,6 +370,12 @@ var Game = {
   },
 
   /* ================= 楼层状态 ================= */
+  /* 手电筒亮度：死亡会掉一档，备用电池能补回来 */
+  lightRadius: function () {
+    var tbl = [0, 142, 168, 196];
+    return tbl[Math.max(1, Math.min(3, this.battery || 3))];
+  },
+
   applyLevelState: function () {
     var self = this;
     World.props.forEach(function (p) {
@@ -377,6 +387,10 @@ var Game = {
         else p.state = st || "ready";
       }
       if (p.t === "key") p.revealed = !!self.revealedKeys[p.key];
+      if (p.t === "battery") {
+        var bk = self.floor + ":" + p.x + "," + p.y;
+        p.taken = !!self.batteryTaken[bk];
+      }
     });
     World.refreshDoors();
   },
@@ -482,6 +496,21 @@ var Game = {
       this.toast("想起来了", KEYS[k].toast + " —— 去拿" + KEYS[k].name, 3400);
       this.updateObjective();
     }
+  },
+
+  pickupBattery: function (p) {
+    if (p.taken) return;
+    p.taken = true;
+    this.batteryTaken[this.floor + ":" + p.x + "," + p.y] = true;
+    var before = this.battery;
+    this.battery = Math.min(3, (this.battery || 3) + 1);
+    AudioSys.pickup();
+    if (this.battery > before) {
+      this.toast("换上了备用电池", "手电筒亮回来一档", 2400);
+    } else {
+      this.toast("备用电池", "手电筒已经是满的，先揣着", 2400);
+    }
+    this.updateObjective();
   },
 
   pickupKey: function (p) {
@@ -598,6 +627,7 @@ var Game = {
       return;
     }
     if (t.t === "key") { this.pickupKey(t); return; }
+    if (t.t === "battery") { this.pickupBattery(t); return; }
     if (t.t === "firedoor") { this.toggleFireDoor(t); return; }
     if (t.t === "lock") {
       if (t.state !== "open") this.tryLock(t);
@@ -809,6 +839,8 @@ var Game = {
     if (this.state !== "play") return;
     this.state = "dead";
     this.deadReason = reason || "";
+    // 设备代价：手电筒摔坏一档（最低一档）
+    this.battery = Math.max(1, (this.battery || 3) - 1);
     this.flashRed = 1;
     this.shake = 1.4;
     Renderer.shake = 1.4;
@@ -889,7 +921,11 @@ var Game = {
     this.updatePrompt();
     this.updateObjective();
     Input.clear();
-    this.toast("重新连接", "它记住了你的味道，但没记住你从哪来", 2600);
+    if (this.battery < 3) {
+      this.toast("重新连接", "手电筒摔坏了一档（" + this.battery + "/3）—— 找备用电池补回来", 3400);
+    } else {
+      this.toast("重新连接", "它记住了你的味道，但没记住你从哪来", 2600);
+    }
   },
 
   /* ================= 天台抉择 / 结局 ================= */

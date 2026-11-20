@@ -514,6 +514,19 @@ var Renderer = {
         c.fillRect(-2, -6, 4, 9);
         c.beginPath(); c.arc(0, -6, 3.4, 0, 6.283); c.fill();
         c.restore();
+      } else if (p.t === "battery" && !p.taken) {
+        // 备用电池：一小节发亮的圆柱
+        var s5 = toS(p.px, p.py);
+        var pul = 0.55 + 0.45 * Math.sin(t * 2.6);
+        var gr = c.createRadialGradient(s5.x, s5.y, 0, s5.x, s5.y, 16);
+        gr.addColorStop(0, "rgba(150,200,170," + (0.16 + pul * 0.12) + ")");
+        gr.addColorStop(1, "rgba(150,200,170,0)");
+        c.fillStyle = gr;
+        c.beginPath(); c.arc(s5.x, s5.y, 16, 0, 6.283); c.fill();
+        c.fillStyle = "#4a5a50";
+        c.fillRect(s5.x - 3, s5.y - 6, 6, 12);
+        c.fillStyle = "#9fd0b0";
+        c.fillRect(s5.x - 3, s5.y - 6, 6, 2);
       }
     }
   },
@@ -661,14 +674,19 @@ var Renderer = {
     c.restore();
   },
 
-  /* 射线可见多边形（屏幕坐标）：光被墙和门切断 */
-  rayPolygon: function (wx, wy, cam, maxD, a0, a1, n) {
+  /* 射线可见多边形（屏幕坐标）：光被墙和门切断
+     clampY > 0 时把纵向位移钳制在 ±clampY，做“柜门缝”的横向带视野 */
+  rayPolygon: function (wx, wy, cam, maxD, a0, a1, n, clampY) {
     var pts = [];
     var full = (a1 - a0) >= Math.PI * 1.99;
+    var py = wy - cam.y;
     for (var i = 0; i <= n; i++) {
       var ang = full ? (i / n) * Math.PI * 2 : a0 + (a1 - a0) * (i / n);
       var d = World.rayDist(wx, wy, ang, maxD);
-      pts.push({ x: wx + Math.cos(ang) * d - cam.x, y: wy + Math.sin(ang) * d - cam.y });
+      var ex = wx + Math.cos(ang) * d - cam.x;
+      var ey = wy + Math.sin(ang) * d - cam.y;
+      if (clampY) ey = py + Math.max(-clampY, Math.min(clampY, ey - py));
+      pts.push({ x: ex, y: ey });
     }
     return pts;
   },
@@ -694,7 +712,7 @@ var Renderer = {
     var s = { x: p.x - g.cam.x, y: p.y - g.cam.y };
 
     var hidden = p.hidden;
-    var baseR = hidden ? 150 : (g.lightOn ? CFG.LIGHT_ON : CFG.LIGHT_OFF);
+    var baseR = hidden ? 150 : (g.lightOn ? g.lightRadius() : CFG.LIGHT_OFF);
     var flick = 0.92 + Math.sin(this.time * 7.3) * 0.03 + Math.sin(this.time * 21.7) * 0.02;
     var R = baseR * flick * (g.lightFlicker ? 0.72 : 1);
     var dark = hidden ? 0.93 : 0.90;
@@ -709,23 +727,12 @@ var Renderer = {
 
     var conePoly = null;
     if (hidden) {
-      // 躲藏时：一条横向的柜门缝视野
-      L.save();
-      L.translate(s.x, s.y);
-      L.scale(1, 0.24);
-      var hRad = L.createRadialGradient(0, 0, 8, 0, 0, 330);
-      hRad.addColorStop(0, "rgba(0,0,0,0.95)");
-      hRad.addColorStop(0.45, "rgba(0,0,0,0.7)");
-      hRad.addColorStop(0.8, "rgba(0,0,0,0.22)");
-      hRad.addColorStop(1, "rgba(0,0,0,0)");
-      L.fillStyle = hRad;
-      L.beginPath(); L.arc(0, 0, 330, 0, 6.283); L.fill();
-      L.restore();
-      var hRad2 = L.createRadialGradient(s.x, s.y, 2, s.x, s.y, 52);
-      hRad2.addColorStop(0, "rgba(0,0,0,0.9)");
-      hRad2.addColorStop(1, "rgba(0,0,0,0)");
-      L.fillStyle = hRad2;
-      L.beginPath(); L.arc(s.x, s.y, 52, 0, 6.283); L.fill();
+      // 躲藏时：柜门缝视野 —— 同样做射线遮挡，只是纵向压扁
+      var hp = p.hidingProp;
+      if (hp) World.ignoreRect = { x0: hp.x, y0: hp.y, x1: hp.x + hp.w, y1: hp.y + hp.h };
+      var slit = this.rayPolygon(p.x, p.y, g.cam, 340, 0, Math.PI * 2, 150, 66);
+      this.fillPoly(L, slit, s.x, s.y, 340, 1);
+      World.ignoreRect = null;
     } else {
       // 身周微光：被墙与门切断
       var poly = this.rayPolygon(p.x, p.y, g.cam, R, 0, Math.PI * 2, 180);
@@ -733,7 +740,7 @@ var Renderer = {
 
       // 手电筒锥形：同样被切断
       if (g.lightOn) {
-        var len = 380, half = 0.46;
+        var len = 380 * (g.lightRadius() / CFG.LIGHT_ON), half = 0.46;
         conePoly = this.rayPolygon(p.x, p.y, g.cam, len, p.face - half, p.face + half, 64);
         this.fillPoly(L, conePoly, s.x, s.y, len, 0.85);
         // 外侧柔光
@@ -748,6 +755,7 @@ var Renderer = {
       var glowR = 0;
       if (pr.clue && !g.clues[pr.clue]) glowR = 62;
       else if (pr.t === "key" && pr.revealed) glowR = 46;
+      else if (pr.t === "battery" && !pr.taken) glowR = 40;
       else if (pr.t === "exit") glowR = 96;
       if (!glowR) continue;
       if (!World.los(g.player.x, g.player.y, pr.px, pr.py)) continue;
@@ -816,27 +824,27 @@ var Renderer = {
     var s = { x: g.player.x - g.cam.x, y: g.player.y - g.cam.y };
     c.save();
 
-    // 柜门缝上下压暗
-    var top = c.createLinearGradient(0, s.y - 96, 0, s.y - 26);
+    // 柜门缝上下压暗（缝口更宽一点，别把视野切碎）
+    var top = c.createLinearGradient(0, s.y - 120, 0, s.y - 54);
     top.addColorStop(0, "rgba(0,0,0,1)");
     top.addColorStop(1, "rgba(0,0,0,0)");
     c.fillStyle = top;
-    c.fillRect(0, s.y - 96, VW, 70);
+    c.fillRect(0, s.y - 120, VW, 66);
 
-    var bot = c.createLinearGradient(0, s.y + 26, 0, s.y + 96);
+    var bot = c.createLinearGradient(0, s.y + 54, 0, s.y + 120);
     bot.addColorStop(0, "rgba(0,0,0,0)");
     bot.addColorStop(1, "rgba(0,0,0,1)");
     c.fillStyle = bot;
-    c.fillRect(0, s.y + 26, VW, 70);
+    c.fillRect(0, s.y + 54, VW, 66);
 
     // 门缝的金属亮边
-    c.strokeStyle = "rgba(150,132,102,0.22)";
+    c.strokeStyle = "rgba(150,132,102,0.20)";
     c.lineWidth = 2;
-    c.beginPath(); c.moveTo(0, s.y - 44); c.lineTo(VW, s.y - 44); c.stroke();
-    c.beginPath(); c.moveTo(0, s.y + 44); c.lineTo(VW, s.y + 44); c.stroke();
+    c.beginPath(); c.moveTo(0, s.y - 70); c.lineTo(VW, s.y - 70); c.stroke();
+    c.beginPath(); c.moveTo(0, s.y + 70); c.lineTo(VW, s.y + 70); c.stroke();
 
     // 黑暗里的呼吸
-    c.fillStyle = "rgba(0,0,0," + (0.06 + 0.05 * Math.sin(this.time * 1.6)) + ")";
+    c.fillStyle = "rgba(0,0,0," + (0.04 + 0.04 * Math.sin(this.time * 1.6)) + ")";
     c.fillRect(0, 0, VW, VH);
 
     c.restore();

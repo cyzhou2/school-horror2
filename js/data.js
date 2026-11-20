@@ -79,6 +79,7 @@ var LEVELS = [
       { t: "locker", x: 48, y: 34, w: 1, h: 1, hide: true, label: "躲进器材柜" },
       { t: "locker", x: 34, y: 34, w: 1, h: 1, hide: true, label: "躲进器材柜" },
       { t: "clue", x: 41, y: 28.6, clue: "mop", label: "数拖把架上的空位" },
+      { t: "battery", x: 46, y: 31, label: "换上备用电池" },
       { t: "banner", x: 40, y: 33, w: 3, h: 1, decor: true, label: "看墙上的锦旗" },
       /* 走廊 */
       { t: "locker", x: 8,  y: 17, w: 1, h: 1, hide: true, label: "躲进铁皮柜" },
@@ -149,6 +150,7 @@ var LEVELS = [
       { t: "desk", x: 29, y: 26, w: 2, h: 1, hide: true, label: "钻到办公桌下" },
       { t: "desk", x: 34, y: 26, w: 2, h: 1, hide: true, label: "钻到办公桌下" },
       { t: "box", x: 24, y: 33, w: 2, h: 1 },
+      { t: "battery", x: 36, y: 32, label: "换上备用电池" },
       /* 走廊 */
       { t: "locker", x: 8,  y: 21, w: 1, h: 1, hide: true, label: "躲进铁皮柜" },
       { t: "locker", x: 16, y: 17, w: 1, h: 1, hide: true, label: "躲进铁皮柜" },
@@ -198,6 +200,7 @@ var LEVELS = [
       { t: "box", x: 4, y: 30, w: 2, h: 1 },
       { t: "locker", x: 14, y: 34, w: 1, h: 1, hide: true, label: "躲进器材柜" },
       { t: "key", x: 8, y: 28.6, key: "key3", label: "拔出配电箱保险丝" },
+      { t: "battery", x: 12, y: 30, label: "换上备用电池" },
       /* 走廊 */
       { t: "locker", x: 7,  y: 17, w: 1, h: 1, hide: true, label: "躲进铁皮柜" },
       { t: "locker", x: 8,  y: 17, w: 1, h: 1, hide: true, label: "躲进铁皮柜" },

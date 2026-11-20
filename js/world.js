@@ -57,7 +57,7 @@ var World = {
     // 物件
     this.props = lv.props.map(function (p, idx2) {
       var type = p.t;
-      var solid = !(p.decor || type === "clue" || type === "key");
+      var solid = !(p.decor || type === "clue" || type === "key" || type === "battery");
       // 低矮家具：挡路，但不挡视线（桌椅、纸箱、洗手台、门牌等）
       var low = type === "desk" || type === "box" || type === "counter" ||
         type === "sink" || type === "banner" || type === "barricade";
@@ -128,6 +128,8 @@ var World = {
   /* 挡视线：墙、高柜、隔间、关着的门。低矮家具（桌椅纸箱）不挡 */
   opaque: function (tx, ty) {
     if (!this.inBounds(tx, ty)) return true;
+    var ig = this.ignoreRect;
+    if (ig && tx >= ig.x0 && tx < ig.x1 && ty >= ig.y0 && ty < ig.y1) return false;
     return this.grid[ty][tx] === 0 || this.tall[ty][tx] === 1 || this.dyn[ty][tx] === 1;
   },
 
@@ -180,15 +182,26 @@ var World = {
     return true;
   },
 
-  /* 沿射线走到第一个遮挡物（光照用）：返回距离 */
+  /* 沿射线精确走到第一个遮挡物（DDA，逐格求交）：返回精确距离 */
   rayDist: function (x1, y1, ang, maxDist) {
     var T = this.T;
-    var cs = Math.cos(ang), sn = Math.sin(ang);
-    var step = 4;
-    for (var d = step; d < maxDist; d += step) {
-      var tx = Math.floor((x1 + cs * d) / T);
-      var ty = Math.floor((y1 + sn * d) / T);
-      if (this.opaque(tx, ty)) return Math.max(0, d - step * 0.5);
+    var dx = Math.cos(ang), dy = Math.sin(ang);
+    var tx = Math.floor(x1 / T), ty = Math.floor(y1 / T);
+    if (this.opaque(tx, ty)) return 0;
+
+    var adx = Math.abs(dx), ady = Math.abs(dy);
+    var stepX = dx >= 0 ? 1 : -1;
+    var stepY = dy >= 0 ? 1 : -1;
+    var tMaxX = adx < 1e-9 ? Infinity : ((dx > 0 ? (tx + 1) * T - x1 : x1 - tx * T) / adx);
+    var tMaxY = ady < 1e-9 ? Infinity : ((dy > 0 ? (ty + 1) * T - y1 : y1 - ty * T) / ady);
+    var tDeltaX = adx < 1e-9 ? Infinity : T / adx;
+    var tDeltaY = ady < 1e-9 ? Infinity : T / ady;
+
+    var d = 0, guard = 0;
+    while (d < maxDist && guard++ < 512) {
+      if (tMaxX < tMaxY) { d = tMaxX; tMaxX += tDeltaX; tx += stepX; }
+      else { d = tMaxY; tMaxY += tDeltaY; ty += stepY; }
+      if (this.opaque(tx, ty)) return Math.min(d, maxDist);
     }
     return maxDist;
   },
@@ -275,9 +288,11 @@ var World = {
       var inter = p.hide || p.clue || p.decor || p.t === "stairs" ||
         p.t === "firedoor" || (p.t === "lock" && p.state !== "open") ||
         (p.t === "barricade" && p.state === "ready") ||
+        (p.t === "battery" && !p.taken) ||
         (p.key && p.revealed);
       if (!inter) continue;
       if (p.key && !p.revealed) continue;
+      if (p.t === "battery" && p.taken) continue;
       var rx = p.x * this.T, ry = p.y * this.T;
       var rw = p.w * this.T, rh = p.h * this.T;
       var cx = Math.max(rx, Math.min(px, rx + rw));
