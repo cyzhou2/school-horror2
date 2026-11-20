@@ -570,7 +570,9 @@ var SlowGhost = {
     if (this.arriveT > 0) {
       this.arriveT -= dt;
       if (this.arriveT <= 0) {
-        this.x = 56 * CFG.TILE; this.y = 11.5 * CFG.TILE;
+        // 从离你最远的那座楼梯口出现，不会刷在脸上
+        var ap = (g.findSpawnPoint && g.findSpawnPoint(true)) || { x: 56, y: 12 };
+        this.x = ap.x * CFG.TILE; this.y = ap.y * CFG.TILE;
         this.state = "walk";
         this.path = [];
         this.freezeT = 0.9;
@@ -622,7 +624,8 @@ var SlowGhost = {
       this.stuckT += dt;
       if (this.stuckT > 3) {
         this.stuckT = 0;
-        this.x = 56 * CFG.TILE; this.y = 11.5 * CFG.TILE;
+        var sp2 = (g.findSpawnPoint && g.findSpawnPoint(true)) || { x: 56, y: 12 };
+        this.x = sp2.x * CFG.TILE; this.y = sp2.y * CFG.TILE;
         this.path = [];
         this.freezeT = 0.8;
         AudioSys.heavyStep(true);

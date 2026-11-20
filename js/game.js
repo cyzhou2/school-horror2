@@ -527,6 +527,24 @@ var Game = {
     this.curRoom = null;
     this.checkpoint = { x: px, y: py, floor: target };
 
+    // 快鬼不跟着“传送”：换层后它也在这一层重新落位，且不会在你附近
+    var gh = this.ghost;
+    if (gh.active) {
+      var gp = this.findSpawnPoint(false) || LEVELS[target].ghostSpawn;
+      gh.x = gp.x * CFG.TILE;
+      gh.y = gp.y * CFG.TILE;
+      gh.path = []; gh.pathI = 0;
+      gh.state = "patrol";
+      gh.waypoint = null;
+      gh.huntProp = null;
+      gh.barrierProp = null;
+      gh.breaking = null;
+      gh.breakT = 0;
+      gh.lostT = 0;
+      gh.trail.length = 0;
+      gh.freezeT = 1.4;
+    }
+
     if (this.ghostWoken) {
       var gs = LEVELS[target].ghostSpawn;
       this.ghost.active = true;
@@ -1056,8 +1074,9 @@ var Game = {
     this.curRoom = null;
     this.live.heat = Math.min(this.live.heat, 30);
     if (this.slow.active) {
-      this.slow.x = 30 * CFG.TILE;
-      this.slow.y = 18 * CFG.TILE;
+      var rp = this.findSpawnPoint(false) || { x: 30, y: 18 };
+      this.slow.x = rp.x * CFG.TILE;
+      this.slow.y = rp.y * CFG.TILE;
       this.slow.floor = this.floor;
       this.slow.path = [];
       this.slow.freezeT = 2.2;
