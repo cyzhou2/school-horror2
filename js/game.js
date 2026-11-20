@@ -403,6 +403,13 @@ var Game = {
     return tbl[Math.max(1, Math.min(3, this.battery || 3))];
   },
 
+  /* 光照缓存的签名：线索/钥匙/电池状态变了才重画遮罩 */
+  glowSig: function () {
+    var s = "";
+    for (var id in this.clues) s += this.clues[id] ? "1" : "0";
+    return s + Object.keys(this.revealedKeys).length + Object.keys(this.keys).length + Object.keys(this.batteryTaken).length;
+  },
+
   applyLevelState: function () {
     var self = this;
     World.props.forEach(function (p) {
@@ -434,14 +441,18 @@ var Game = {
   },
 
   /* ================= 楼梯 ================= */
-  openStairs: function () {
+  openStairs: function (prop) {
+    this.pendingStair = prop || null;
     this.state = "stairs";
     var up = document.getElementById("btnStairUp");
     var down = document.getElementById("btnStairDown");
     if (up) up.textContent = this.floor >= 2 ? "上天台" : "上楼（" + LEVELS[this.floor + 1].floorLabel + "）";
     if (down) down.classList.toggle("hidden", this.floor <= 0);
     var info = document.getElementById("stairInfo");
-    if (info) info.textContent = LEVELS[this.floor].name + " · 楼梯间";
+    if (info) {
+      var side = prop && prop.stairId === "south" ? "南侧" : "北侧";
+      info.textContent = LEVELS[this.floor].name + " · " + side + "楼梯间";
+    }
     var el = document.getElementById("stairsScreen");
     if (el) el.classList.remove("hidden");
   },
@@ -455,23 +466,28 @@ var Game = {
   },
 
   useStairs: function (dir) {
+    var stairId = (this.pendingStair && this.pendingStair.stairId) || "north";
     this.closeStairs();
     if (dir > 0) {
       if (this.floor >= 2) { this.openChoice(); return; }
-      this.changeFloor(this.floor + 1);
+      this.changeFloor(this.floor + 1, stairId);
     } else {
       if (this.floor <= 0) return;
-      this.changeFloor(this.floor - 1);
+      this.changeFloor(this.floor - 1, stairId);
     }
   },
 
-  changeFloor: function (target) {
+  changeFloor: function (target, stairId) {
+    stairId = stairId || "north";
+    this.lastStair = stairId;
     this.floor = target;
     World.load(target);
     Renderer.bake();
     this.applyLevelState();
 
-    var px = 57.2 * CFG.TILE, py = 19.5 * CFG.TILE;
+    // 从同一侧楼梯间出来，站在锁的南/下侧
+    var land = stairId === "south" ? { x: 6, y: 38.5 } : { x: 56, y: 11.5 };
+    var px = land.x * CFG.TILE, py = land.y * CFG.TILE;
     this.player.x = px; this.player.y = py;
     this.player.hidden = false;
     this.player.hidingProp = null;
@@ -611,7 +627,10 @@ var Game = {
   tryLock: function (p) {
     var L = LOCKS[p.lock];
     if (this.keys[L.key]) {
-      p.state = "open";
+      // 同一把锁可能有两处（南北楼梯间），一起开
+      World.props.forEach(function (p2) {
+        if (p2.t === "lock" && p2.lock === p.lock) p2.state = "open";
+      });
       this.doorStates[p.lock] = "open";
       World.refreshDoors();
       AudioSys.stinger("door", 1);
@@ -682,7 +701,7 @@ var Game = {
       return;
     }
     if (t.t === "barricade") { this.pushBarricade(t); return; }
-    if (t.t === "stairs") { this.openStairs(); return; }
+    if (t.t === "stairs") { this.openStairs(t); return; }
     if (t.hide) { this.doHide(t); return; }
     if (t.decor) { this.sayFlavor(t); return; }
   },
@@ -765,7 +784,7 @@ var Game = {
     var T = CFG.TILE;
     var sp = LEVELS[this.floor].ghostSpawn;
     // 别刷在玩家脸上：挑离玩家最远的候选点
-    var cands = [{ x: sp.x, y: sp.y }, { x: 5, y: 19 }, { x: 57, y: 19 }, { x: 30, y: 19 }];
+    var cands = [{ x: sp.x, y: sp.y }, { x: 5, y: 24 }, { x: 58, y: 24 }, { x: 30, y: 18 }, { x: 30, y: 31 }];
     var best = cands[0], bestD = -1;
     for (var i = 0; i < cands.length; i++) {
       var dx = cands[i].x * T - this.player.x;
@@ -804,7 +823,8 @@ var Game = {
   spawnSlowGhost: function () {
     if (this.slowSpawned) return;
     this.slowSpawned = true;
-    this.slow.spawn(50 * CFG.TILE, 19.5 * CFG.TILE, this.floor);
+    // 从北侧楼梯间里走上来 —— 正好堵住一条上楼的路，逼你走另一侧
+    this.slow.spawn(56 * CFG.TILE, 12 * CFG.TILE, this.floor);
     AudioSys.heavyStep(true);
     AudioSys.stinger("dead", 0.8);
     this.shake = 0.7;
@@ -955,8 +975,8 @@ var Game = {
     this.curRoom = null;
     this.live.heat = Math.min(this.live.heat, 30);
     if (this.slow.active) {
-      this.slow.x = 6 * CFG.TILE;
-      this.slow.y = 19.5 * CFG.TILE;
+      this.slow.x = 30 * CFG.TILE;
+      this.slow.y = 18 * CFG.TILE;
       this.slow.floor = this.floor;
       this.slow.path = [];
       this.slow.freezeT = 2.2;

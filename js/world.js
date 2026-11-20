@@ -5,6 +5,7 @@ var World = {
   T: 32,
   levelIndex: 0,
   level: null,
+  dynVersion: 0,
   grid: null,       // 0 墙 / 1 地板
   solid: null,      // 静态物件占位
   dyn: null,        // 动态物件（门 / 锁）占位
@@ -56,6 +57,13 @@ var World = {
       for (var k = 0; k < w; k++) this.grid[d.y][d.x + k] = 1;
     }, this);
 
+    // 拐角空场
+    (lv.plazas || []).forEach(function (pz) {
+      for (var y = pz.y; y < pz.y + pz.h; y++)
+        for (var x = pz.x; x < pz.x + pz.w; x++)
+          if (this.inBounds(x, y)) this.grid[y][x] = 1;
+    }, this);
+
     // 物件
     this.props = lv.props.map(function (p, idx2) {
       var type = p.t;
@@ -70,6 +78,8 @@ var World = {
         hide: !!p.hide, decor: !!p.decor,
         clue: p.clue || null, key: p.key || null,
         lock: p.lock || null, doorId: p.doorId || null, barId: p.barId || null,
+        stairId: p.stairId || null,
+        block: p.bx !== undefined ? { x: p.bx, y: p.by, w: p.bw || 1, h: p.bh || 1 } : null,
         label: p.label || "",
         px: (p.x + (p.w || 1) / 2) * CFG.TILE,
         py: (p.y + (p.h || 1) / 2) * CFG.TILE,
@@ -101,6 +111,7 @@ var World = {
 
   /* 门/锁/堵门会改变通行性；只有门和锁挡视线，桌椅不挡 */
   refreshDoors: function () {
+    this.dynVersion = (this.dynVersion || 0) + 1;
     for (var y = 0; y < CFG.MAP_H; y++) { this.dyn[y].fill(0); this.dynOp[y].fill(0); }
     this.props.forEach(function (p) {
       if (p.dynamic && p.state === "closed") {
@@ -108,7 +119,10 @@ var World = {
         this.fillSolid(p, 1, this.dynOp);
       }
       if (p.t === "barricade" && p.state === "blocking") {
-        for (var y = 17; y <= 21; y++) if (this.inBounds(p.x, y)) this.dyn[y][p.x] = 1;
+        var b = p.block || { x: p.x, y: 16, w: 1, h: 5 };
+        for (var by = b.y; by < b.y + b.h; by++)
+          for (var bx = b.x; bx < b.x + b.w; bx++)
+            if (this.inBounds(bx, by)) this.dyn[by][bx] = 1;
       }
     }, this);
   },

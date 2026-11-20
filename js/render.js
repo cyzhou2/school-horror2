@@ -17,21 +17,43 @@ var Renderer = {
     this.cv = cv;
     this.ctx = cv.getContext("2d");
     this.light = document.createElement("canvas");
-    this.light.width = CFG.VIEW_W;
-    this.light.height = CFG.VIEW_H;
+    this.light.width = Math.ceil(CFG.VIEW_W / 2);
+    this.light.height = Math.ceil(CFG.VIEW_H / 2);
     this.lctx = this.light.getContext("2d");
     this.mapCv = document.createElement("canvas");
     this.mapCv.width = CFG.MAP_W * CFG.TILE;
     this.mapCv.height = CFG.MAP_H * CFG.TILE;
     this.mapCtx = this.mapCv.getContext("2d");
     this.T = CFG.TILE;
+    this.lightKey = "";
+    this.buildGrain();
+  },
+
+  /* 生成一张静态噪点贴图，替代全屏 SVG 滤镜 */
+  buildGrain: function () {
+    var n = 96;
+    var cv = document.createElement("canvas");
+    cv.width = n; cv.height = n;
+    var cx = cv.getContext("2d");
+    var img = cx.createImageData(n, n);
+    var d = img.data;
+    for (var i = 0; i < d.length; i += 4) {
+      var v = (Math.random() * 255) | 0;
+      d[i] = d[i + 1] = d[i + 2] = v;
+      d[i + 3] = 90;
+    }
+    cx.putImageData(img, 0, 0);
+    try {
+      document.documentElement.style.setProperty("--grain-tile", "url(" + cv.toDataURL("image/png") + ")");
+    } catch (e) { /* 忽略 */ }
   },
 
   setViewSize: function (w, h) {
     this.cv.width = w;
     this.cv.height = h;
-    this.light.width = w;
-    this.light.height = h;
+    this.light.width = Math.ceil(w / 2);
+    this.light.height = Math.ceil(h / 2);
+    this.lightKey = "";
     CFG.VIEW_W = w;
     CFG.VIEW_H = h;
   },
@@ -747,73 +769,83 @@ var Renderer = {
     var hidden = p.hidden;
     var baseR = hidden ? 150 : (g.lightOn ? g.lightRadius() : CFG.LIGHT_OFF);
     var flick = 0.92 + Math.sin(this.time * 7.3) * 0.03 + Math.sin(this.time * 21.7) * 0.02;
-    var R = baseR * flick * (g.lightFlicker ? 0.72 : 1);
+    var R = Math.round(baseR * flick * (g.lightFlicker ? 0.72 : 1) / 4) * 4;
     var dark = hidden ? 0.93 : 0.90;
 
-    L.setTransform(1, 0, 0, 1, 0, 0);
-    L.globalCompositeOperation = "source-over";
-    L.clearRect(0, 0, VW, VH);
-    L.fillStyle = "rgba(0,0,0," + dark + ")";
-    L.fillRect(0, 0, VW, VH);
+    // 站定 / 没变化时直接复用上一帧的遮罩
+    var key = [
+      Math.round(p.x), Math.round(p.y), Math.round(p.face * 10), R,
+      g.lightOn ? 1 : 0, hidden ? 1 : 0, World.dynVersion || 0, g.glowSig()
+    ].join("|");
 
-    L.globalCompositeOperation = "destination-out";
+    if (key !== this.lightKey) {
+      this.lightKey = key;
 
-    var conePoly = null;
-    if (hidden) {
-      // 躲藏时：柜门缝视野 —— 同样做射线遮挡，只是纵向压扁
-      var hp = p.hidingProp;
-      if (hp) World.ignoreRect = { x0: hp.x, y0: hp.y, x1: hp.x + hp.w, y1: hp.y + hp.h };
-      var slit = this.rayPolygon(p.x, p.y, g.cam, 340, 0, Math.PI * 2, 150, 66);
-      this.fillPoly(L, slit, s.x, s.y, 340, 1);
-      World.ignoreRect = null;
-    } else {
-      // 身周微光：被墙与门切断
-      var poly = this.rayPolygon(p.x, p.y, g.cam, R, 0, Math.PI * 2, 180);
-      this.fillPoly(L, poly, s.x, s.y, R, 1);
+      // 半分辨率遮罩：填充量降到 1/4
+      L.setTransform(0.5, 0, 0, 0.5, 0, 0);
+      L.globalCompositeOperation = "source-over";
+      L.clearRect(0, 0, VW, VH);
+      L.fillStyle = "rgba(0,0,0," + dark + ")";
+      L.fillRect(0, 0, VW, VH);
+      L.globalCompositeOperation = "destination-out";
 
-      // 手电筒锥形：同样被切断
-      if (g.lightOn) {
-        var len = 380 * (g.lightRadius() / CFG.LIGHT_ON), half = 0.46;
-        conePoly = this.rayPolygon(p.x, p.y, g.cam, len, p.face - half, p.face + half, 64);
-        this.fillPoly(L, conePoly, s.x, s.y, len, 0.85);
-        // 外侧柔光
-        var fringePoly = this.rayPolygon(p.x, p.y, g.cam, len * 0.92, p.face - half * 1.45, p.face + half * 1.45, 56);
-        this.fillPoly(L, fringePoly, s.x, s.y, len, 0.32);
+      var conePoly = null;
+      if (hidden) {
+        var hp = p.hidingProp;
+        if (hp) World.ignoreRect = { x0: hp.x, y0: hp.y, x1: hp.x + hp.w, y1: hp.y + hp.h };
+        var slit = this.rayPolygon(p.x, p.y, g.cam, 340, 0, Math.PI * 2, 110, 66);
+        this.fillPoly(L, slit, s.x, s.y, 340, 1);
+        World.ignoreRect = null;
+      } else {
+        var poly = this.rayPolygon(p.x, p.y, g.cam, R, 0, Math.PI * 2, 132);
+        this.fillPoly(L, poly, s.x, s.y, R, 1);
+
+        if (g.lightOn) {
+          var len = 380 * (g.lightRadius() / CFG.LIGHT_ON), half = 0.46;
+          conePoly = this.rayPolygon(p.x, p.y, g.cam, len, p.face - half, p.face + half, 46);
+          this.fillPoly(L, conePoly, s.x, s.y, len, 0.85);
+          var fringePoly = this.rayPolygon(p.x, p.y, g.cam, len * 0.92, p.face - half * 1.45, p.face + half * 1.45, 34);
+          this.fillPoly(L, fringePoly, s.x, s.y, len, 0.32);
+        }
       }
+
+      // 附近光源：线索、钥匙、电池、出口
+      for (var i = 0; i < World.props.length; i++) {
+        var pr = World.props[i];
+        var glowR = 0;
+        if (pr.clue && !g.clues[pr.clue]) glowR = 62;
+        else if (pr.t === "key" && pr.revealed) glowR = 74;
+        else if (pr.t === "battery" && !pr.taken) glowR = 40;
+        else if (pr.t === "exit") glowR = 96;
+        if (!glowR) continue;
+        if (!World.los(g.player.x, g.player.y, pr.px, pr.py)) continue;
+        var ps = { x: pr.px - g.cam.x, y: pr.py - g.cam.y };
+        if (ps.x < -glowR || ps.y < -glowR || ps.x > VW + glowR || ps.y > VH + glowR) continue;
+        var g2 = L.createRadialGradient(ps.x, ps.y, 0, ps.x, ps.y, glowR);
+        g2.addColorStop(0, "rgba(0,0,0,0.65)");
+        g2.addColorStop(1, "rgba(0,0,0,0)");
+        L.fillStyle = g2;
+        L.beginPath(); L.arc(ps.x, ps.y, glowR, 0, 6.283); L.fill();
+      }
+
+      L.globalCompositeOperation = "source-over";
+      this._conePoly = conePoly;
+      this._coneFace = p.face;
     }
 
-    // 附近光源：线索、钥匙、门缝
-    for (var i = 0; i < World.props.length; i++) {
-      var pr = World.props[i];
-      var glowR = 0;
-      if (pr.clue && !g.clues[pr.clue]) glowR = 62;
-      else if (pr.t === "key" && pr.revealed) glowR = 74;
-      else if (pr.t === "battery" && !pr.taken) glowR = 40;
-      else if (pr.t === "exit") glowR = 96;
-      if (!glowR) continue;
-      if (!World.los(g.player.x, g.player.y, pr.px, pr.py)) continue;
-      var ps = { x: pr.px - g.cam.x, y: pr.py - g.cam.y };
-      if (ps.x < -glowR || ps.y < -glowR || ps.x > VW + glowR || ps.y > VH + glowR) continue;
-      var g2 = L.createRadialGradient(ps.x, ps.y, 0, ps.x, ps.y, glowR);
-      g2.addColorStop(0, "rgba(0,0,0,0.65)");
-      g2.addColorStop(1, "rgba(0,0,0,0)");
-      L.fillStyle = g2;
-      L.beginPath(); L.arc(ps.x, ps.y, glowR, 0, 6.283); L.fill();
-    }
+    c.drawImage(this.light, 0, 0, VW, VH);
 
-    L.globalCompositeOperation = "source-over";
-    c.drawImage(this.light, 0, 0);
-
-    // 手电筒暖色叠加（同样被遮挡）
-    if (!hidden && g.lightOn && conePoly) {
+    // 手电筒暖色叠加（很淡，且只有开灯时）
+    if (!hidden && g.lightOn && this._conePoly) {
       c.globalCompositeOperation = "lighter";
       var wg = c.createRadialGradient(s.x, s.y, 10, s.x, s.y, 380);
-      wg.addColorStop(0, "rgba(120,104,70,0.10)");
+      wg.addColorStop(0, "rgba(120,104,70,0.09)");
       wg.addColorStop(1, "rgba(120,104,70,0)");
       c.fillStyle = wg;
       c.beginPath();
       c.moveTo(s.x, s.y);
-      for (var k = 0; k < conePoly.length; k++) c.lineTo(conePoly[k].x, conePoly[k].y);
+      var cp = this._conePoly;
+      for (var k = 0; k < cp.length; k++) c.lineTo(cp[k].x, cp[k].y);
       c.closePath();
       c.fill();
       c.globalCompositeOperation = "source-over";

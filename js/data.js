@@ -4,7 +4,7 @@
 var CFG = {
   TILE: 32,
   MAP_W: 64,
-  MAP_H: 40,
+  MAP_H: 48,
   VIEW_W: 960,
   VIEW_H: 540,
 
@@ -39,8 +39,10 @@ var CFG = {
 };
 
 /*
-  三层楼，共用一个 64x40 的瓦片网格。
-  走廊 y17..21，楼上房间 y5..15，楼下房间 y23..35，楼梯在走廊最东头。
+  v3 地图：每层一个环形走廊（北/南/东/西四条腿 + 拐角空场），
+  两座楼梯间在斜对角（北东 / 南西）。走廊 y16..20 / y29..33，
+  房间带 y3..14 与 y35..46，中央块 y21..28（1F 是中央大厅）。
+  上楼的门锁在楼梯间内部，拦在梯段前 —— 进楼梯间自由，上楼才要钥匙。
 */
 var LEVELS = [
   /* ======================= 一层 ======================= */
@@ -49,53 +51,80 @@ var LEVELS = [
     floorLabel: "1F",
     name: "一号楼 · 一层",
     rooms: [
-      { id: "hall",   name: "一层大厅",   x: 3,  y: 5,  w: 15, h: 11, tint: "#181410" },
-      { id: "guard",  name: "保安室",     x: 19, y: 5,  w: 13, h: 11, tint: "#171412" },
-      { id: "store",  name: "体育器材室", x: 33, y: 23, w: 18, h: 13, tint: "#15130f" },
-      { id: "corr",   name: "一层走廊",   x: 3,  y: 17, w: 58, h: 5,  tint: "#1a1712" }
+      { id: "guard",      name: "保安室",       x: 3,  y: 3,  w: 15, h: 12, tint: "#171412" },
+      { id: "equip",      name: "体育器材室",   x: 19, y: 3,  w: 15, h: 12, tint: "#15130f" },
+      { id: "store1",     name: "杂物间",       x: 35, y: 3,  w: 13, h: 12, tint: "#161310" },
+      { id: "stairN",     name: "北侧楼梯间",   x: 49, y: 3,  w: 12, h: 12, tint: "#131211" },
+      { id: "hall",       name: "一层大厅",     x: 11, y: 22, w: 40, h: 6,  tint: "#1a1612" },
+      { id: "stairS",     name: "南侧楼梯间",   x: 3,  y: 35, w: 12, h: 12, tint: "#131211" },
+      { id: "gate",       name: "门房",         x: 16, y: 35, w: 14, h: 12, tint: "#171412" },
+      { id: "lockerRoom", name: "更衣室",       x: 31, y: 35, w: 14, h: 12, tint: "#161410" },
+      { id: "depot",      name: "储藏室",       x: 46, y: 35, w: 15, h: 12, tint: "#15130f" },
+      { id: "corrN", name: "一层环形走廊", x: 3,  y: 16, w: 58, h: 5,  tint: "#1a1712" },
+      { id: "corrS", name: "一层环形走廊", x: 3,  y: 29, w: 58, h: 5,  tint: "#1a1712" },
+      { id: "corrW", name: "一层环形走廊", x: 3,  y: 16, w: 5,  h: 18, tint: "#1a1712" },
+      { id: "corrE", name: "一层环形走廊", x: 56, y: 16, w: 5,  h: 18, tint: "#1a1712" }
     ],
     doorways: [
-      { x: 10, y: 16, w: 2 }, { x: 25, y: 16, w: 2 }, { x: 40, y: 22, w: 2 }
+      { x: 9, y: 15, w: 2 }, { x: 25, y: 15, w: 2 }, { x: 40, y: 15, w: 2 }, { x: 54, y: 15, w: 2 },
+      { x: 8, y: 34, w: 2 }, { x: 22, y: 34, w: 2 }, { x: 37, y: 34, w: 2 }, { x: 52, y: 34, w: 2 },
+      { x: 30, y: 21, w: 2 }, { x: 30, y: 28, w: 2 }
     ],
-    spawn: { x: 10.5, y: 13 },
-    ghostSpawn: { x: 5, y: 19 },
+    plazas: [],
+    spawn: { x: 30, y: 24.5 },
+    ghostSpawn: { x: 5, y: 24.5 },
     props: [
-      /* 大厅 */
-      { t: "locker", x: 4, y: 6, w: 1, h: 1, hide: true, label: "躲进铁皮柜" },
-      { t: "locker", x: 5, y: 6, w: 1, h: 1, hide: true, label: "躲进铁皮柜" },
-      { t: "counter", x: 3, y: 13, w: 4, h: 1 },
-      { t: "board", x: 12, y: 5, w: 5, h: 1, decor: true, label: "看公告栏" },
-      { t: "banner", x: 9, y: 10, w: 2, h: 1, decor: true, label: "看横幅" },
-      /* 保安室：记录与画面（行政） */
-      { t: "counter", x: 20, y: 8, w: 5, h: 1 },
-      { t: "counter", x: 28, y: 5, w: 3, h: 4 },
-      { t: "board", x: 20, y: 5, w: 4, h: 1, decor: true, label: "看值班表" },
-      { t: "locker", x: 20, y: 14, w: 1, h: 1, hide: true, label: "躲进档案柜" },
-      { t: "clue", x: 22.4, y: 9.1, clue: "tape", label: "查看监控主机" },
-      { t: "key", x: 21.5, y: 6.4, key: "key1", label: "摘下钥匙串" },
-      /* 器材室：物证（拖把架上的缺口） */
-      { t: "box", x: 35, y: 25, w: 2, h: 1 },
-      { t: "box", x: 35, y: 29, w: 2, h: 1 },
-      { t: "box", x: 47, y: 26, w: 2, h: 1 },
-      { t: "locker", x: 48, y: 34, w: 1, h: 1, hide: true, label: "躲进器材柜" },
-      { t: "locker", x: 34, y: 34, w: 1, h: 1, hide: true, label: "躲进器材柜" },
-      { t: "clue", x: 41, y: 28.6, clue: "mop", label: "数拖把架上的空位" },
-      { t: "battery", x: 46, y: 31, label: "换上备用电池" },
-      { t: "banner", x: 40, y: 33, w: 3, h: 1, decor: true, label: "看墙上的锦旗" },
-      /* 走廊 */
-      { t: "locker", x: 8,  y: 17, w: 1, h: 1, hide: true, label: "躲进铁皮柜" },
-      { t: "locker", x: 9,  y: 17, w: 1, h: 1, hide: true, label: "躲进铁皮柜" },
-      { t: "locker", x: 15, y: 17, w: 1, h: 1, hide: true, label: "躲进铁皮柜" },
-      { t: "locker", x: 30, y: 21, w: 1, h: 1, hide: true, label: "躲进铁皮柜" },
-      { t: "locker", x: 43, y: 21, w: 1, h: 1, hide: true, label: "躲进铁皮柜" },
-      { t: "locker", x: 51, y: 17, w: 1, h: 1, hide: true, label: "躲进铁皮柜" },
-      { t: "box", x: 37, y: 17, w: 2, h: 1, decor: true, label: "看倒下的柜子" },
-      /* 门与楼梯 */
-      { t: "firedoor", x: 20, y: 17, w: 1, h: 5, doorId: "d1a" },
-      { t: "firedoor", x: 45, y: 17, w: 1, h: 5, doorId: "d1b" },
-      { t: "barricade", x: 32, y: 21, w: 1, h: 1, barId: "b1", label: "把桌椅推过去堵住" },
-      { t: "lock", x: 56, y: 17, w: 1, h: 5, lock: "lock1", label: "消防门 · 上着锁" },
-      { t: "stairs", x: 58, y: 17, w: 2, h: 4, label: "楼梯" }
+      /* 保安室 */
+      { t: "counter", x: 4, y: 7, w: 5, h: 1 },
+      { t: "board", x: 5, y: 4, w: 4, h: 1, decor: true, label: "看值班表" },
+      { t: "clue", x: 10.5, y: 8.5, clue: "tape", label: "查看监控主机" },
+      { t: "key", x: 6.5, y: 5.4, key: "key1", label: "摘下钥匙串" },
+      { t: "locker", x: 15, y: 13, w: 1, h: 1, hide: true, label: "躲进档案柜" },
+      /* 体育器材室 */
+      { t: "box", x: 20, y: 6, w: 2, h: 1 },
+      { t: "box", x: 20, y: 10, w: 2, h: 1 },
+      { t: "clue", x: 28, y: 8.6, clue: "mop", label: "数拖把架上的空位" },
+      { t: "locker", x: 31, y: 13, w: 1, h: 1, hide: true, label: "躲进器材柜" },
+      { t: "banner", x: 21, y: 13, w: 3, h: 1, decor: true, label: "看墙上的锦旗" },
+      /* 杂物间 */
+      { t: "box", x: 36, y: 5, w: 2, h: 1 },
+      { t: "box", x: 44, y: 11, w: 2, h: 1 },
+      { t: "locker", x: 46, y: 4, w: 1, h: 1, hide: true, label: "躲进木柜" },
+      { t: "battery", x: 44, y: 6, label: "换上备用电池" },
+      /* 北侧楼梯间（锁在梯段前） */
+      { t: "lock", x: 49, y: 9, w: 12, h: 1, lock: "lock1", label: "消防门" },
+      { t: "stairs", x: 54, y: 3, w: 4, h: 3, stairId: "north", label: "楼梯" },
+      /* 中央大厅 */
+      { t: "counter", x: 13, y: 25, w: 5, h: 1 },
+      { t: "banner", x: 30, y: 22, w: 3, h: 1, decor: true, label: "看横幅" },
+      { t: "locker", x: 49, y: 24, w: 1, h: 1, hide: true, label: "躲进铁皮柜" },
+      { t: "locker", x: 12, y: 22, w: 1, h: 1, hide: true, label: "躲进消防柜" },
+      { t: "box", x: 24, y: 26, w: 2, h: 1 },
+      /* 南侧楼梯间 */
+      { t: "lock", x: 3, y: 40, w: 12, h: 1, lock: "lock1", label: "消防门" },
+      { t: "stairs", x: 4, y: 43, w: 4, h: 3, stairId: "south", label: "楼梯" },
+      /* 门房 */
+      { t: "counter", x: 17, y: 38, w: 4, h: 1 },
+      { t: "desk", x: 22, y: 38, w: 2, h: 1, hide: true, label: "钻到桌下" },
+      { t: "battery", x: 27, y: 44, label: "换上备用电池" },
+      /* 更衣室 */
+      { t: "locker", x: 32, y: 36, w: 1, h: 1, hide: true, label: "躲进衣柜" },
+      { t: "locker", x: 33, y: 36, w: 1, h: 1, hide: true, label: "躲进衣柜" },
+      { t: "locker", x: 42, y: 36, w: 1, h: 1, hide: true, label: "躲进衣柜" },
+      /* 储藏室 */
+      { t: "box", x: 47, y: 37, w: 2, h: 1 },
+      { t: "box", x: 47, y: 41, w: 2, h: 1 },
+      { t: "locker", x: 58, y: 45, w: 1, h: 1, hide: true, label: "躲进器材柜" },
+      /* 走廊：环上的柜子、防火门、桌椅 */
+      { t: "locker", x: 13, y: 16, w: 1, h: 1, hide: true, label: "躲进铁皮柜" },
+      { t: "locker", x: 14, y: 16, w: 1, h: 1, hide: true, label: "躲进铁皮柜" },
+      { t: "locker", x: 30, y: 33, w: 1, h: 1, hide: true, label: "躲进铁皮柜" },
+      { t: "locker", x: 58, y: 20, w: 1, h: 1, hide: true, label: "躲进铁皮柜" },
+      { t: "locker", x: 5, y: 24, w: 1, h: 1, hide: true, label: "躲进铁皮柜" },
+      { t: "box", x: 36, y: 16, w: 2, h: 1, decor: true, label: "看倒下的柜子" },
+      { t: "firedoor", x: 30, y: 16, w: 1, h: 5, doorId: "d1a" },
+      { t: "firedoor", x: 48, y: 29, w: 1, h: 5, doorId: "d1b" },
+      { t: "barricade", x: 20, y: 33, w: 1, h: 1, barId: "b1", bx: 20, by: 29, bw: 1, bh: 5, label: "把桌椅推过去堵住" }
     ]
   },
 
@@ -105,65 +134,82 @@ var LEVELS = [
     floorLabel: "2F",
     name: "一号楼 · 二层",
     rooms: [
-      { id: "class",     name: "三年二班",   x: 3,  y: 5,  w: 17, h: 11, tint: "#191510" },
-      { id: "toilet",    name: "女厕",       x: 21, y: 5,  w: 12, h: 11, tint: "#141414" },
-      { id: "broadcast", name: "广播室",     x: 34, y: 5,  w: 13, h: 11, tint: "#171410" },
-      { id: "office",    name: "教务处",     x: 3,  y: 23, w: 18, h: 13, tint: "#171412" },
-      { id: "teachers",  name: "教师办公室", x: 22, y: 23, w: 17, h: 13, tint: "#181510" },
-      { id: "corr",      name: "二层走廊",   x: 3,  y: 17, w: 58, h: 5,  tint: "#1a1712" }
+      { id: "class",     name: "三年二班",     x: 3,  y: 3,  w: 16, h: 12, tint: "#191510" },
+      { id: "toilet",    name: "女厕",         x: 21, y: 3,  w: 11, h: 12, tint: "#141414" },
+      { id: "broadcast", name: "广播室",       x: 34, y: 3,  w: 13, h: 12, tint: "#171410" },
+      { id: "stairN",    name: "北侧楼梯间",   x: 49, y: 3,  w: 12, h: 12, tint: "#131211" },
+      { id: "stairS",    name: "南侧楼梯间",   x: 3,  y: 35, w: 12, h: 12, tint: "#131211" },
+      { id: "office",    name: "教务处",       x: 17, y: 35, w: 14, h: 12, tint: "#171412" },
+      { id: "teachers",  name: "教师办公室",   x: 33, y: 35, w: 14, h: 12, tint: "#181510" },
+      { id: "prep",      name: "准备室",       x: 49, y: 35, w: 12, h: 12, tint: "#161410" },
+      { id: "corrN", name: "二层环形走廊", x: 3,  y: 16, w: 58, h: 5,  tint: "#1a1712" },
+      { id: "corrS", name: "二层环形走廊", x: 3,  y: 29, w: 58, h: 5,  tint: "#1a1712" },
+      { id: "corrW", name: "二层环形走廊", x: 3,  y: 16, w: 5,  h: 18, tint: "#1a1712" },
+      { id: "corrE", name: "二层环形走廊", x: 56, y: 16, w: 5,  h: 18, tint: "#1a1712" }
     ],
     doorways: [
-      { x: 10, y: 16, w: 2 }, { x: 25, y: 16, w: 2 }, { x: 40, y: 16, w: 2 },
-      { x: 10, y: 22, w: 2 }, { x: 30, y: 22, w: 2 }
+      { x: 9, y: 15, w: 2 }, { x: 25, y: 15, w: 2 }, { x: 40, y: 15, w: 2 }, { x: 54, y: 15, w: 2 },
+      { x: 8, y: 34, w: 2 }, { x: 22, y: 34, w: 2 }, { x: 37, y: 34, w: 2 }, { x: 52, y: 34, w: 2 }
     ],
-    spawn: { x: 57.5, y: 19.5 },
-    ghostSpawn: { x: 7, y: 30 },
+    plazas: [
+      { x: 8, y: 21, w: 3, h: 3 }, { x: 53, y: 21, w: 3, h: 3 },
+      { x: 8, y: 26, w: 3, h: 3 }, { x: 53, y: 26, w: 3, h: 3 }
+    ],
+    spawn: { x: 56, y: 11.5 },
+    ghostSpawn: { x: 6, y: 38 },
     props: [
       /* 三年二班 */
-      { t: "desk", x: 5,  y: 8,  w: 2, h: 1, hide: true, label: "钻到课桌下" },
-      { t: "desk", x: 9,  y: 8,  w: 2, h: 1, hide: true, label: "钻到课桌下" },
-      { t: "desk", x: 13, y: 8,  w: 2, h: 1, hide: true, label: "钻到课桌下" },
-      { t: "desk", x: 5,  y: 11, w: 2, h: 1, hide: true, label: "钻到课桌下" },
-      { t: "desk", x: 9,  y: 11, w: 2, h: 1, hide: true, label: "钻到课桌下" },
-      { t: "desk", x: 13, y: 11, w: 2, h: 1, hide: true, label: "钻到课桌下" },
-      { t: "board", x: 6, y: 5, w: 8, h: 1, decor: true, label: "看黑板" },
-      { t: "clue", x: 10.5, y: 13.9, clue: "letter", label: "拉开讲台抽屉" },
+      { t: "board", x: 5, y: 4, w: 7, h: 1, decor: true, label: "看黑板" },
+      { t: "desk", x: 5, y: 7, w: 2, h: 1, hide: true, label: "钻到课桌下" },
+      { t: "desk", x: 9, y: 7, w: 2, h: 1, hide: true, label: "钻到课桌下" },
+      { t: "desk", x: 13, y: 7, w: 2, h: 1, hide: true, label: "钻到课桌下" },
+      { t: "desk", x: 5, y: 10, w: 2, h: 1, hide: true, label: "钻到课桌下" },
+      { t: "desk", x: 13, y: 10, w: 2, h: 1, hide: true, label: "钻到课桌下" },
+      { t: "clue", x: 10, y: 11.4, clue: "letter", label: "拉开讲台抽屉" },
       /* 女厕 */
-      { t: "stall", x: 24, y: 5, w: 1, h: 6 },
-      { t: "stall", x: 28, y: 5, w: 1, h: 6 },
-      { t: "locker", x: 22, y: 6, w: 1, h: 1, hide: true, label: "缩进隔间" },
-      { t: "locker", x: 26, y: 6, w: 1, h: 1, hide: true, label: "缩进隔间" },
-      { t: "locker", x: 30, y: 6, w: 1, h: 1, hide: true, label: "缩进隔间" },
-      { t: "sink", x: 22, y: 13, w: 4, h: 1, decor: true, label: "看镜子" },
+      { t: "stall", x: 23, y: 3, w: 1, h: 6 },
+      { t: "stall", x: 27, y: 3, w: 1, h: 6 },
+      { t: "locker", x: 22, y: 5, w: 1, h: 1, hide: true, label: "缩进隔间" },
+      { t: "locker", x: 25, y: 5, w: 1, h: 1, hide: true, label: "缩进隔间" },
+      { t: "locker", x: 29, y: 5, w: 1, h: 1, hide: true, label: "缩进隔间" },
+      { t: "sink", x: 22, y: 12, w: 4, h: 1, decor: true, label: "看镜子" },
       /* 广播室 */
-      { t: "counter", x: 35, y: 9, w: 4, h: 1 },
-      { t: "board", x: 36, y: 5, w: 6, h: 1, decor: true, label: "看值班表" },
-      { t: "locker", x: 45, y: 14, w: 1, h: 1, hide: true, label: "躲进器材柜" },
-      { t: "clue", x: 40, y: 10.4, clue: "rec", label: "按下录音键" },
+      { t: "counter", x: 35, y: 8, w: 4, h: 1 },
+      { t: "board", x: 36, y: 4, w: 6, h: 1, decor: true, label: "看值班表" },
+      { t: "clue", x: 40, y: 9.5, clue: "rec", label: "按下录音键" },
+      { t: "locker", x: 45, y: 13, w: 1, h: 1, hide: true, label: "躲进器材柜" },
+      /* 北侧楼梯间 */
+      { t: "lock", x: 49, y: 9, w: 12, h: 1, lock: "lock2", label: "电子门禁" },
+      { t: "stairs", x: 54, y: 3, w: 4, h: 3, stairId: "north", label: "楼梯" },
+      /* 南侧楼梯间 */
+      { t: "lock", x: 3, y: 40, w: 12, h: 1, lock: "lock2", label: "电子门禁" },
+      { t: "stairs", x: 4, y: 43, w: 4, h: 3, stairId: "south", label: "楼梯" },
       /* 教务处 */
-      { t: "counter", x: 5, y: 26, w: 5, h: 1 },
-      { t: "counter", x: 15, y: 24, w: 3, h: 4 },
-      { t: "locker", x: 18, y: 34, w: 1, h: 1, hide: true, label: "躲进档案柜" },
-      { t: "locker", x: 4, y: 34, w: 1, h: 1, hide: true, label: "躲进档案柜" },
-      { t: "key", x: 12, y: 28.4, key: "key2", label: "抽出门禁卡" },
+      { t: "counter", x: 18, y: 38, w: 5, h: 1 },
+      { t: "counter", x: 28, y: 36, w: 2, h: 4 },
+      { t: "key", x: 24, y: 40.5, key: "key2", label: "抽出门禁卡" },
+      { t: "locker", x: 18, y: 45, w: 1, h: 1, hide: true, label: "躲进档案柜" },
       /* 教师办公室 */
-      { t: "desk", x: 24, y: 26, w: 2, h: 1, hide: true, label: "钻到办公桌下" },
-      { t: "desk", x: 29, y: 26, w: 2, h: 1, hide: true, label: "钻到办公桌下" },
-      { t: "desk", x: 34, y: 26, w: 2, h: 1, hide: true, label: "钻到办公桌下" },
-      { t: "box", x: 24, y: 33, w: 2, h: 1 },
-      { t: "battery", x: 36, y: 32, label: "换上备用电池" },
-      /* 走廊 */
-      { t: "locker", x: 8,  y: 21, w: 1, h: 1, hide: true, label: "躲进铁皮柜" },
-      { t: "locker", x: 16, y: 17, w: 1, h: 1, hide: true, label: "躲进铁皮柜" },
-      { t: "locker", x: 33, y: 21, w: 1, h: 1, hide: true, label: "躲进铁皮柜" },
-      { t: "locker", x: 48, y: 21, w: 1, h: 1, hide: true, label: "躲进铁皮柜" },
-      { t: "board", x: 20, y: 17, w: 4, h: 1, decor: true, label: "看墙上的照片" },
-      /* 门与楼梯 */
-      { t: "firedoor", x: 22, y: 17, w: 1, h: 5, doorId: "d2a" },
-      { t: "firedoor", x: 44, y: 17, w: 1, h: 5, doorId: "d2b" },
-      { t: "barricade", x: 36, y: 21, w: 1, h: 1, barId: "b2", label: "把桌椅推过去堵住" },
-      { t: "lock", x: 56, y: 17, w: 1, h: 5, lock: "lock2", label: "电子门禁" },
-      { t: "stairs", x: 58, y: 17, w: 2, h: 4, label: "楼梯" }
+      { t: "desk", x: 34, y: 38, w: 2, h: 1, hide: true, label: "钻到办公桌下" },
+      { t: "desk", x: 38, y: 38, w: 2, h: 1, hide: true, label: "钻到办公桌下" },
+      { t: "desk", x: 42, y: 38, w: 2, h: 1, hide: true, label: "钻到办公桌下" },
+      { t: "box", x: 34, y: 44, w: 2, h: 1 },
+      { t: "battery", x: 45, y: 44, label: "换上备用电池" },
+      /* 准备室 */
+      { t: "box", x: 50, y: 37, w: 2, h: 1 },
+      { t: "box", x: 54, y: 42, w: 2, h: 1 },
+      { t: "locker", x: 59, y: 36, w: 1, h: 1, hide: true, label: "躲进木柜" },
+      /* 环廊 */
+      { t: "locker", x: 13, y: 16, w: 1, h: 1, hide: true, label: "躲进铁皮柜" },
+      { t: "locker", x: 14, y: 16, w: 1, h: 1, hide: true, label: "躲进铁皮柜" },
+      { t: "locker", x: 20, y: 20, w: 1, h: 1, hide: true, label: "躲进铁皮柜" },
+      { t: "locker", x: 45, y: 33, w: 1, h: 1, hide: true, label: "躲进铁皮柜" },
+      { t: "locker", x: 5, y: 24, w: 1, h: 1, hide: true, label: "躲进铁皮柜" },
+      { t: "locker", x: 58, y: 24, w: 1, h: 1, hide: true, label: "躲进铁皮柜" },
+      { t: "board", x: 20, y: 16, w: 4, h: 1, decor: true, label: "看墙上的照片" },
+      { t: "firedoor", x: 30, y: 16, w: 1, h: 5, doorId: "d2a" },
+      { t: "firedoor", x: 48, y: 29, w: 1, h: 5, doorId: "d2b" },
+      { t: "barricade", x: 20, y: 33, w: 1, h: 1, barId: "b2", bx: 20, by: 29, bw: 1, bh: 5, label: "把桌椅推过去堵住" }
     ]
   },
 
@@ -173,47 +219,77 @@ var LEVELS = [
     floorLabel: "3F",
     name: "一号楼 · 三层",
     rooms: [
-      { id: "locker3", name: "三层储物间",   x: 3,  y: 5,  w: 16, h: 11, tint: "#141210" },
-      { id: "office3", name: "教师办公室",   x: 20, y: 5,  w: 15, h: 11, tint: "#17140f" },
-      { id: "power",   name: "配电间",       x: 3,  y: 23, w: 14, h: 13, tint: "#131210" },
-      { id: "corr",    name: "三层走廊",     x: 3,  y: 17, w: 58, h: 5,  tint: "#191612" }
+      { id: "store3",  name: "三层储物间",   x: 3,  y: 3,  w: 15, h: 12, tint: "#141210" },
+      { id: "office3", name: "教师办公室",   x: 20, y: 3,  w: 14, h: 12, tint: "#17140f" },
+      { id: "archive", name: "档案室",       x: 36, y: 3,  w: 12, h: 12, tint: "#151310" },
+      { id: "stairN",  name: "北侧楼梯间",   x: 49, y: 3,  w: 12, h: 12, tint: "#131211" },
+      { id: "stairS",  name: "南侧楼梯间",   x: 3,  y: 35, w: 12, h: 12, tint: "#131211" },
+      { id: "power",   name: "配电间",       x: 17, y: 35, w: 13, h: 12, tint: "#131210" },
+      { id: "meeting", name: "会议室",       x: 32, y: 35, w: 14, h: 12, tint: "#161410" },
+      { id: "roofHall",name: "天台门厅",     x: 48, y: 35, w: 13, h: 12, tint: "#121110" },
+      { id: "corrN", name: "三层环形走廊", x: 3,  y: 16, w: 58, h: 5,  tint: "#1a1712" },
+      { id: "corrS", name: "三层环形走廊", x: 3,  y: 29, w: 58, h: 5,  tint: "#1a1712" },
+      { id: "corrW", name: "三层环形走廊", x: 3,  y: 16, w: 5,  h: 18, tint: "#1a1712" },
+      { id: "corrE", name: "三层环形走廊", x: 56, y: 16, w: 5,  h: 18, tint: "#1a1712" }
     ],
     doorways: [
-      { x: 10, y: 16, w: 2 }, { x: 28, y: 16, w: 2 }, { x: 10, y: 22, w: 2 }
+      { x: 9, y: 15, w: 2 }, { x: 26, y: 15, w: 2 }, { x: 40, y: 15, w: 2 }, { x: 54, y: 15, w: 2 },
+      { x: 8, y: 34, w: 2 }, { x: 22, y: 34, w: 2 }, { x: 37, y: 34, w: 2 }, { x: 52, y: 34, w: 2 }
     ],
-    spawn: { x: 57.5, y: 19.5 },
-    ghostSpawn: { x: 6, y: 30 },
+    plazas: [
+      { x: 8, y: 21, w: 3, h: 3 }, { x: 53, y: 21, w: 3, h: 3 },
+      { x: 8, y: 26, w: 3, h: 3 }, { x: 53, y: 26, w: 3, h: 3 }
+    ],
+    spawn: { x: 56, y: 11.5 },
+    ghostSpawn: { x: 6, y: 38 },
     props: [
-      /* 三层储物间：她死在这里 */
-      { t: "box", x: 4, y: 8, w: 2, h: 1 },
+      /* 三层储物间（她死在这里） */
+      { t: "box", x: 4, y: 7, w: 2, h: 1 },
       { t: "box", x: 4, y: 11, w: 2, h: 1 },
-      { t: "locker", x: 15, y: 6, w: 1, h: 1, hide: true, label: "躲进储物柜" },
-      { t: "locker", x: 15, y: 9, w: 1, h: 1, hide: true, label: "躲进储物柜" },
-      { t: "clue", x: 9, y: 10.5, clue: "phone", label: "捡起地上的手机" },
-      { t: "board", x: 6, y: 5, w: 5, h: 1, decor: true, label: "看墙上的值班表" },
-      /* 教师办公室（三层） */
-      { t: "desk", x: 22, y: 8, w: 2, h: 1, hide: true, label: "钻到办公桌下" },
-      { t: "desk", x: 28, y: 8, w: 2, h: 1, hide: true, label: "钻到办公桌下" },
-      { t: "counter", x: 32, y: 5, w: 2, h: 4 },
-      { t: "clue", x: 26, y: 10.4, clue: "uniform", label: "看叠在椅背上的校服" },
+      { t: "locker", x: 14, y: 5, w: 1, h: 1, hide: true, label: "躲进储物柜" },
+      { t: "locker", x: 14, y: 8, w: 1, h: 1, hide: true, label: "躲进储物柜" },
+      { t: "clue", x: 8, y: 9.5, clue: "phone", label: "捡起地上的手机" },
+      { t: "board", x: 5, y: 4, w: 5, h: 1, decor: true, label: "看墙上的值班表" },
+      /* 教师办公室 */
+      { t: "desk", x: 21, y: 6, w: 2, h: 1, hide: true, label: "钻到办公桌下" },
+      { t: "desk", x: 26, y: 6, w: 2, h: 1, hide: true, label: "钻到办公桌下" },
+      { t: "counter", x: 31, y: 4, w: 2, h: 4 },
+      { t: "clue", x: 25, y: 9.4, clue: "uniform", label: "看叠在椅背上的校服" },
+      /* 档案室 */
+      { t: "box", x: 37, y: 6, w: 2, h: 1 },
+      { t: "box", x: 44, y: 11, w: 2, h: 1 },
+      { t: "locker", x: 46, y: 4, w: 1, h: 1, hide: true, label: "躲进档案柜" },
+      { t: "battery", x: 41, y: 12, label: "换上备用电池" },
+      /* 北侧楼梯间 */
+      { t: "lock", x: 49, y: 9, w: 12, h: 1, lock: "lock3", label: "断电连锁门" },
+      { t: "stairs", x: 54, y: 3, w: 4, h: 3, stairId: "north", label: "楼梯" },
+      /* 南侧楼梯间 */
+      { t: "lock", x: 3, y: 40, w: 12, h: 1, lock: "lock3", label: "断电连锁门" },
+      { t: "stairs", x: 4, y: 43, w: 4, h: 3, stairId: "south", label: "楼梯" },
       /* 配电间 */
-      { t: "box", x: 4, y: 26, w: 2, h: 1 },
-      { t: "box", x: 4, y: 30, w: 2, h: 1 },
-      { t: "locker", x: 14, y: 34, w: 1, h: 1, hide: true, label: "躲进器材柜" },
-      { t: "key", x: 8, y: 28.6, key: "key3", label: "拔出配电箱保险丝" },
-      { t: "battery", x: 12, y: 30, label: "换上备用电池" },
-      /* 走廊 */
-      { t: "locker", x: 7,  y: 17, w: 1, h: 1, hide: true, label: "躲进铁皮柜" },
-      { t: "locker", x: 8,  y: 17, w: 1, h: 1, hide: true, label: "躲进铁皮柜" },
-      { t: "locker", x: 18, y: 21, w: 1, h: 1, hide: true, label: "躲进铁皮柜" },
-      { t: "locker", x: 35, y: 17, w: 1, h: 1, hide: true, label: "躲进铁皮柜" },
-      { t: "box", x: 24, y: 19, w: 2, h: 1, decor: true, label: "看塌下来的吊顶" },
-      { t: "banner", x: 41, y: 21, w: 3, h: 1, decor: true, label: "看警戒线残留" },
-      /* 门与楼梯 */
-      { t: "firedoor", x: 20, y: 17, w: 1, h: 5, doorId: "d3a" },
-      { t: "barricade", x: 33, y: 21, w: 1, h: 1, barId: "b3", label: "把桌椅推过去堵住" },
-      { t: "lock", x: 56, y: 17, w: 1, h: 5, lock: "lock3", label: "断电连锁门" },
-      { t: "stairs", x: 58, y: 17, w: 2, h: 4, label: "通往天台" }
+      { t: "box", x: 18, y: 37, w: 2, h: 1 },
+      { t: "box", x: 18, y: 42, w: 2, h: 1 },
+      { t: "key", x: 24, y: 40.5, key: "key3", label: "拔出配电箱保险丝" },
+      { t: "locker", x: 28, y: 45, w: 1, h: 1, hide: true, label: "躲进器材柜" },
+      /* 会议室 */
+      { t: "desk", x: 33, y: 38, w: 2, h: 1, hide: true, label: "钻到会议桌下" },
+      { t: "desk", x: 37, y: 38, w: 2, h: 1, hide: true, label: "钻到会议桌下" },
+      { t: "desk", x: 41, y: 38, w: 2, h: 1, hide: true, label: "钻到会议桌下" },
+      { t: "banner", x: 34, y: 44, w: 3, h: 1, decor: true, label: "看标语" },
+      /* 天台门厅 */
+      { t: "box", x: 49, y: 37, w: 2, h: 1 },
+      { t: "locker", x: 59, y: 45, w: 1, h: 1, hide: true, label: "躲进消防柜" },
+      { t: "banner", x: 50, y: 44, w: 3, h: 1, decor: true, label: "看警戒线残留" },
+      /* 环廊 */
+      { t: "locker", x: 7, y: 16, w: 1, h: 1, hide: true, label: "躲进铁皮柜" },
+      { t: "locker", x: 8, y: 16, w: 1, h: 1, hide: true, label: "躲进铁皮柜" },
+      { t: "locker", x: 18, y: 20, w: 1, h: 1, hide: true, label: "躲进铁皮柜" },
+      { t: "locker", x: 35, y: 33, w: 1, h: 1, hide: true, label: "躲进铁皮柜" },
+      { t: "locker", x: 58, y: 20, w: 1, h: 1, hide: true, label: "躲进铁皮柜" },
+      { t: "box", x: 24, y: 16, w: 2, h: 1, decor: true, label: "看塌下来的吊顶" },
+      { t: "firedoor", x: 30, y: 16, w: 1, h: 5, doorId: "d3a" },
+      { t: "firedoor", x: 48, y: 29, w: 1, h: 5, doorId: "d3b" },
+      { t: "barricade", x: 20, y: 33, w: 1, h: 1, barId: "b3", bx: 20, by: 29, bw: 1, bh: 5, label: "把桌椅推过去堵住" }
     ]
   }
 ];

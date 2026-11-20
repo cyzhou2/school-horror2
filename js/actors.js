@@ -394,17 +394,18 @@ var Ghost = {
     this.x = np.x; this.y = np.y;
   },
 
-  pickWaypoint: function (g) {    var pts = [
-      { x: 10 * 32, y: 19 * 32 },
-      { x: 25 * 32, y: 19 * 32 },
-      { x: 40 * 32, y: 19 * 32 },
-      { x: 55 * 32, y: 19 * 32 },
-      { x: 10 * 32, y: 9 * 32 },
-      { x: 25 * 32, y: 9 * 32 },
-      { x: 40 * 32, y: 9 * 32 },
-      { x: 55 * 32, y: 8 * 32 },
-      { x: 9 * 32, y: 30 * 32 },
-      { x: 55 * 32, y: 30 * 32 }
+  pickWaypoint: function (g) {
+    var pts = [
+      { x: 10 * 32, y: 18 * 32 },
+      { x: 30 * 32, y: 18 * 32 },
+      { x: 50 * 32, y: 18 * 32 },
+      { x: 30 * 32, y: 31 * 32 },
+      { x: 50 * 32, y: 31 * 32 },
+      { x: 10 * 32, y: 31 * 32 },
+      { x: 5 * 32, y: 24 * 32 },
+      { x: 58 * 32, y: 24 * 32 },
+      { x: 56 * 32, y: 12 * 32 },
+      { x: 6 * 32, y: 37 * 32 }
     ];
     var best = null, bestD = -1;
     for (var i = 0; i < 6; i++) {
@@ -493,8 +494,7 @@ var SlowGhost = {
     if (this.arriveT > 0) {
       this.arriveT -= dt;
       if (this.arriveT <= 0) {
-        this.x = 57.5 * CFG.TILE;
-        this.y = 19.5 * CFG.TILE;
+        this.x = 56 * CFG.TILE; this.y = 11.5 * CFG.TILE;
         this.state = "walk";
         this.path = [];
         this.freezeT = 0.9;
@@ -546,8 +546,7 @@ var SlowGhost = {
       this.stuckT += dt;
       if (this.stuckT > 3) {
         this.stuckT = 0;
-        this.x = 57.5 * CFG.TILE;
-        this.y = 19.5 * CFG.TILE;
+        this.x = 56 * CFG.TILE; this.y = 11.5 * CFG.TILE;
         this.path = [];
         this.freezeT = 0.8;
         AudioSys.heavyStep(true);
