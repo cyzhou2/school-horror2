@@ -21,8 +21,6 @@ var Game = {
   floor: 0,
 
   lightOn: true,
-  battery: 3,
-  batteryTaken: {},
   buzzT: 10,
   buzzFlash: 0,
   buzzHinted: false,
@@ -142,11 +140,13 @@ var Game = {
     this.slowSpawned = false;
     this.slowHinted = false;
     this.slow.reset();
-    this.battery = 3;
-    this.batteryTaken = {};
     this.buzzT = 10;
     this.buzzFlash = 0;
     this.buzzHinted = false;
+    this.deathCount = 0;
+    this.updateBlood();
+    this.explored = [{}, {}, {}];
+    this.exploreT = 0;
 
     this.floor = 0;
     World.build(0);
@@ -231,7 +231,7 @@ var Game = {
     if (this.state === "play") this.update(dt);
     else if (this.state === "title") this.updateIdle(dt);
 
-    if (this.inGame) Renderer.draw(this);
+    if (this.inGame) { Renderer.draw(this); Renderer.drawMinimap(this); }
     else this.drawTitleBg();
 
     var self = this;
@@ -313,8 +313,7 @@ var Game = {
     }
 
     // 房间
-    var room = World.roomAt(p.x, p.y);
-    if (room && (!this.curRoom || room.id !== this.curRoom.id)) {
+    var room = World.roomAt(p.x, p.y);    if (room && (!this.curRoom || room.id !== this.curRoom.id)) {
       this.curRoom = room;
       this.checkpoint = { x: p.x, y: p.y, floor: this.floor };
       this.showRoom(room.name);
@@ -328,20 +327,44 @@ var Game = {
     this.cam.x += (tx - this.cam.x) * k;
     this.cam.y += (ty - this.cam.y) * k;
 
-    // 心跳与灯管
-    if (g.active) {
-      var dx = p.x - g.x, dy = p.y - g.y;
-      var d = Math.sqrt(dx * dx + dy * dy);
-      if (d < 340) {
-        var near = 1 - d / 340;
-        this.heartT -= dt;
-        if (this.heartT <= 0) {
-          this.heartT = Math.max(0.42, 1.35 - near * 1.0);
-          AudioSys.heart(0.5 + near);
-          if (near > 0.55 && Math.random() < 0.4) AudioSys.breath();
-          this.shake = Math.min(1, this.shake + near * 0.05);
+    // 记录已探索区域（给小地图）
+    this.exploreT -= dt;
+    if (this.exploreT <= 0) {
+      this.exploreT = 0.18;
+      var ex = this.explored[this.floor];
+      var cx = Math.floor(p.x / CFG.TILE), cy = Math.floor(p.y / CFG.TILE), R = 7;
+      for (var ey = cy - R; ey <= cy + R; ey++) {
+        for (var exx = cx - R; exx <= cx + R; exx++) {
+          if (exx < 0 || ey < 0 || exx >= CFG.MAP_W || ey >= CFG.MAP_H) continue;
+          if (World.grid[ey][exx] !== 1) continue;
+          var ddx = exx - cx, ddy = ey - cy;
+          if (ddx * ddx + ddy * ddy > R * R) continue;
+          ex[exx + "," + ey] = 1;
         }
       }
+    }
+
+    // 心跳：取两只鬼里最近的那只，越近越急越响
+    var nearestGhost = 1e9, nearKind = null;
+    if (g.active && g.arriveT !== undefined) {
+      var d1 = Math.sqrt((p.x - g.x) * (p.x - g.x) + (p.y - g.y) * (p.y - g.y));
+      nearestGhost = d1; nearKind = "fast";
+    }
+    if (this.slow.active && this.slow.arriveT <= 0) {
+      var d2 = Math.sqrt((p.x - this.slow.x) * (p.x - this.slow.x) + (p.y - this.slow.y) * (p.y - this.slow.y));
+      if (d2 < nearestGhost) { nearestGhost = d2; nearKind = "slow"; }
+    }
+    if (nearestGhost < 460) {
+      var near = 1 - nearestGhost / 460;
+      this.heartT -= dt;
+      if (this.heartT <= 0) {
+        this.heartT = Math.max(0.34, 1.5 - near * 1.25);
+        AudioSys.heart(0.35 + near * 0.9);
+        if (near > 0.55 && Math.random() < 0.4) AudioSys.breath();
+        this.shake = Math.min(1, this.shake + near * 0.05);
+      }
+    }
+    if (g.active) {
       this.flickerT -= dt;
       if (this.flickerT <= 0) {
         this.flickerT = 2.2 + Math.random() * 4;
@@ -366,21 +389,6 @@ var Game = {
       if (this.noises[i].ttl <= 0) this.noises.splice(i, 1);
     }
 
-    // 桌椅只能撑一段时间
-    for (var bid in this.barTimers) {
-      this.barTimers[bid] -= dt;
-      if (this.barTimers[bid] <= 0) {
-        delete this.barTimers[bid];
-        this.doorStates[bid] = "used";
-        for (var j = 0; j < World.props.length; j++) {
-          var bp = World.props[j];
-          if (bp.t === "barricade" && bp.barId === bid) bp.state = "used";
-        }
-        World.refreshDoors();
-        this.toast("", "桌椅撑不住，散了", 2000);
-        AudioSys.stinger("locker", 0.8);
-      }
-    }
   },
 
   clampCamX: function (x) {
@@ -398,16 +406,22 @@ var Game = {
 
   /* ================= 楼层状态 ================= */
   /* 手电筒亮度：死亡会掉一档，备用电池能补回来 */
-  lightRadius: function () {
-    var tbl = [0, 142, 168, 196];
-    return tbl[Math.max(1, Math.min(3, this.battery || 3))];
+  lightRadius: function () { return CFG.LIGHT_ON; },
+
+  /* 每次死亡，画面就更猩红一分 */
+  updateBlood: function () {
+    var el = document.getElementById("blood");
+    if (!el) return;
+    var n = Math.min(this.deathCount || 0, CFG.MAX_DEATHS);
+    el.style.opacity = String(Math.min(0.92, n * 0.3));
+    el.classList.toggle("heavy", n >= 2);
   },
 
   /* 光照缓存的签名：线索/钥匙/电池状态变了才重画遮罩 */
   glowSig: function () {
     var s = "";
     for (var id in this.clues) s += this.clues[id] ? "1" : "0";
-    return s + Object.keys(this.revealedKeys).length + Object.keys(this.keys).length + Object.keys(this.batteryTaken).length;
+    return s + Object.keys(this.revealedKeys).length + Object.keys(this.keys).length;
   },
 
   applyLevelState: function () {
@@ -421,10 +435,6 @@ var Game = {
         else p.state = st || "ready";
       }
       if (p.t === "key") p.revealed = !!self.revealedKeys[p.key];
-      if (p.t === "battery") {
-        var bk = self.floor + ":" + p.x + "," + p.y;
-        p.taken = !!self.batteryTaken[bk];
-      }
     });
     World.refreshDoors();
   },
@@ -545,21 +555,6 @@ var Game = {
     }
   },
 
-  pickupBattery: function (p) {
-    if (p.taken) return;
-    p.taken = true;
-    this.batteryTaken[this.floor + ":" + p.x + "," + p.y] = true;
-    var before = this.battery;
-    this.battery = Math.min(3, (this.battery || 3) + 1);
-    AudioSys.pickup();
-    if (this.battery > before) {
-      this.toast("换上了备用电池", "手电筒亮回来一档", 2400);
-    } else {
-      this.toast("备用电池", "手电筒已经是满的，先揣着", 2400);
-    }
-    this.updateObjective();
-  },
-
   pickupKey: function (p) {
     this.keys[p.key] = true;
     p.revealed = false;
@@ -607,10 +602,22 @@ var Game = {
   },
 
   pushBarricade: function (p) {
-    if (p.state !== "ready") return;
+    if (p.state === "used") return;
+
+    // 已经堵上了：再按一次就是把桌椅挪开
+    if (p.state === "blocking") {
+      p.state = "ready";
+      this.doorStates[p.barId] = "ready";
+      World.refreshDoors();
+      AudioSys.stinger("door", 0.5);
+      this.emitNoise(p.px, p.py, CFG.NOISE_ACT, true);
+      this.toast("", "你把桌椅挪回墙边 —— 还能再推一次", 2000);
+      return;
+    }
+
     // 你正站在要堵的那一列里：先把自己挪开
     var T = CFG.TILE;
-    if (Math.floor(this.player.x / T) === p.x && this.player.y / T >= 16.5 && this.player.y / T <= 21.5) {
+    if (Math.floor(this.player.x / T) === p.x && this.player.y / T >= 16.5 && this.player.y / T <= 33.5) {
       var f = World.nearestFree(this.player.x + T, this.player.y, this.player.r);
       this.player.x = f.x; this.player.y = f.y;
       this.toast("", "你把桌椅推过去，自己退开了一步", 1800);
@@ -620,8 +627,7 @@ var Game = {
     World.refreshDoors();
     AudioSys.stinger("door", 0.7);
     this.emitNoise(p.px, p.py, CFG.NOISE_RUN, true);
-    this.toast("", "桌椅横在走廊里 —— 大概能撑十几秒", 2400);
-    this.barTimers[p.barId] = CFG.BARRICADE_HOLD;
+    this.toast("", "桌椅横在走廊里 —— 它得撞一阵子", 2400);
   },
 
   tryLock: function (p) {
@@ -694,7 +700,6 @@ var Game = {
       return;
     }
     if (t.t === "key") { this.pickupKey(t); return; }
-    if (t.t === "battery") { this.pickupBattery(t); return; }
     if (t.t === "firedoor") { this.toggleFireDoor(t); return; }
     if (t.t === "lock") {
       if (t.state !== "open") this.tryLock(t);
@@ -907,8 +912,8 @@ var Game = {
     if (this.state !== "play") return;
     this.state = "dead";
     this.deadReason = reason || "";
-    // 设备代价：手电筒摔坏一档（最低一档）
-    this.battery = Math.max(1, (this.battery || 3) - 1);
+    this.deathCount = (this.deathCount || 0) + 1;
+    this.updateBlood();
     this.flashRed = 1;
     this.shake = 1.4;
     Renderer.shake = 1.4;
@@ -928,12 +933,15 @@ var Game = {
       chatBox.innerHTML = lines.map(function (l) { return "<div>" + l + "</div>"; }).join("");
     }
 
-    // 惩罚 A：平台限流（弹幕消失 90 秒、热度清零、人数砍半）
-    this.live.punish();
 
     var self = this;
     setTimeout(function () {
       if (self.state !== "dead") return;
+      // 第三次死亡：自己也消失，直接进入坏结局
+      if (self.deathCount >= CFG.MAX_DEATHS) {
+        self.showEnding("vanish");
+        return;
+      }
       var el = document.getElementById("deadScreen");
       if (el) el.classList.remove("hidden");
       self.live.sayPool("death");
@@ -994,11 +1002,7 @@ var Game = {
     this.updatePrompt();
     this.updateObjective();
     Input.clear();
-    if (this.battery < 3) {
-      this.toast("重新连接", "手电筒摔坏了一档（" + this.battery + "/3）—— 找备用电池补回来", 3400);
-    } else {
-      this.toast("重新连接", "它记住了你的味道，但没记住你从哪来", 2600);
-    }
+    this.toast("重新连接", "它记住了你的味道，但没记住你从哪来", 2600);
   },
 
   /* ================= 天台抉择 / 结局 ================= */
@@ -1038,7 +1042,7 @@ var Game = {
       localStorage.setItem("schoolHorror_clues", String(this.clueCount));
     } catch (err) { /* 隐私模式下忽略 */ }
 
-    var poolKey = kind === "good" || kind === "half" ? "endingGood" : kind === "black" ? "endingBad" : "endingGood";
+    var poolKey = kind === "black" || kind === "vanish" ? "endingBad" : "endingGood";
     var pool = DANMAKU[poolKey];
     var self = this;
     for (var i = 0; i < 6; i++) {

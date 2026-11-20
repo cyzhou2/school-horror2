@@ -158,10 +158,12 @@ var Ghost = {
 
   speedOf: function (g) {
     var heat = g.live.heat;
-    if (this.state === "chase") return CFG.GHOST_CHASE + heat * 0.34;
-    if (this.state === "hunt") return CFG.GHOST_CHASE * 0.92 + heat * 0.26;
-    if (this.state === "alert" || this.state === "search") return CFG.GHOST_SEARCH + heat * 0.2;
-    return CFG.GHOST_PATROL + heat * 0.14;
+    // 追逐速度封顶在玩家走路速度（104）之下，跑起来一定能拉开
+    var chase = Math.min(101, CFG.GHOST_CHASE + heat * 0.06);
+    if (this.state === "chase") return chase;
+    if (this.state === "hunt") return Math.min(96, chase * 0.94);
+    if (this.state === "alert" || this.state === "search") return CFG.GHOST_SEARCH + heat * 0.1;
+    return CFG.GHOST_PATROL + heat * 0.08;
   },
 
   sightRange: function (g) {
@@ -290,6 +292,12 @@ var Ghost = {
     this.breaking = null;
 
     this.moveAlong(dt, g);
+
+    // 拉得太远就脱战
+    if (this.state === "chase") {
+      var dl = Math.sqrt((p.x - this.x) * (p.x - this.x) + (p.y - this.y) * (p.y - this.y));
+      if (dl > CFG.GHOST_LEASH) this.lostT += dt * 2.2;
+    }
 
     // 追逐 -> 丢失
     if (this.state === "chase" && this.lostT > 2.6) {

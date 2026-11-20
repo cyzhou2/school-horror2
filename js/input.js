@@ -48,6 +48,7 @@ var Input = {
       if (self.touchMode) return;
       self.touchMode = true;
       self.dom.touch.classList.remove("hidden");
+      document.body.classList.add("touch");
     };
     window.addEventListener("touchstart", enableTouch, { once: true, passive: true });
 

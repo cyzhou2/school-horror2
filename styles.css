@@ -195,14 +195,47 @@ html, body {
 #toast .big { display: block; font-family: var(--serif); font-size: 20px; letter-spacing: .3em; color: #fff; }
 
 #roomName {
-  position: absolute; left: 50%; bottom: 6%;
+  position: absolute; left: 50%; bottom: 9%;
   transform: translateX(-50%);
-  font-family: var(--serif); font-size: 15px; letter-spacing: .5em;
-  color: rgba(217,210,196,.42);
-  opacity: 0; transition: opacity .8s;
+  font-family: var(--serif); font-size: 22px; letter-spacing: .34em;
+  color: rgba(240,232,214,.92);
+  background: rgba(6,5,4,.55);
+  border-left: 2px solid var(--red);
+  border-right: 2px solid var(--red);
+  padding: 6px 22px 6px 26px;
+  text-shadow: 0 2px 10px #000, 0 0 22px rgba(200,50,74,.25);
+  opacity: 0; transition: opacity .5s;
   white-space: nowrap;
+  z-index: 5;
 }
 #roomName.show { opacity: 1; }
+
+/* 猩红度：每死一次更红一层 */
+#blood {
+  position: absolute; inset: 0; z-index: 4;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 1.2s ease;
+  background:
+    radial-gradient(ellipse at 50% 50%, rgba(0,0,0,0) 30%, rgba(120,10,18,.55) 72%, rgba(90,4,10,.95) 100%),
+    radial-gradient(ellipse at 50% 120%, rgba(160,20,30,.35), rgba(0,0,0,0) 60%);
+}
+#blood.heavy { animation: bloodPulse 4.2s ease-in-out infinite; }
+@keyframes bloodPulse {
+  0%, 100% { filter: saturate(1) brightness(1); }
+  50% { filter: saturate(1.35) brightness(1.12); }
+}
+
+/* 小地图：只有自己那一圈亮着，其余是雾 */
+#minimap {
+  position: absolute; right: 14px; bottom: 14px;
+  width: 150px; height: 112px;
+  border: 1px solid rgba(150,140,120,.22);
+  background: rgba(4,4,5,.55);
+  opacity: .92;
+  z-index: 5;
+}
+body.touch #minimap { bottom: 170px; right: 12px; width: 124px; height: 93px; }
 
 .hidden { display: none !important; }
 

@@ -296,6 +296,77 @@ var Renderer = {
         c.closePath();
         c.fill();
         break;
+
+      /* ===== 房间特质家具（配色沿用旧调） ===== */
+      case "shelf":
+        // 书架：木框 + 三排书
+        c.fillStyle = "#2e241b";
+        c.fillRect(x + 1, y + 1, w - 2, h - 2);
+        c.fillStyle = "#1a140f";
+        c.fillRect(x + 3, y + 3, w - 6, h - 6);
+        var rowH = (h - 8) / 3;
+        for (var r = 0; r < 3; r++) {
+          c.fillStyle = "#3a2c20";
+          c.fillRect(x + 2, y + 5 + r * rowH + rowH - 3, w - 4, 2);
+          for (var bk = 0; bk < Math.floor((w - 8) / 4); bk++) {
+            var hh = rowH - 6 - this.hash(bk + p.x, r + p.y) * 4;
+            var cols = ["#4a3a28", "#3f4436", "#4d3830", "#3a3a44", "#443c2c"];
+            c.fillStyle = cols[Math.floor(this.hash(bk * 3, r * 7) * cols.length) % cols.length];
+            c.fillRect(x + 4 + bk * 4, y + 5 + r * rowH + rowH - 5 - hh, 3, hh);
+          }
+        }
+        break;
+
+      case "cabinet":
+        // 铁皮文件柜：抽屉线 + 拉手
+        c.fillStyle = "#39413c";
+        c.fillRect(x + 1, y + 1, w - 2, h - 2);
+        c.fillStyle = "#454e47";
+        c.fillRect(x + 2, y + 2, w - 4, 3);
+        for (var dr = 0; dr < 3; dr++) {
+          var dy = y + h * (0.22 + dr * 0.26);
+          c.fillStyle = "rgba(0,0,0,0.5)";
+          c.fillRect(x + 4, dy, w - 8, 2);
+          c.fillStyle = "#7a7f76";
+          c.fillRect(x + w * 0.42, dy + 5, w * 0.16, 3);
+        }
+        c.fillStyle = "rgba(0,0,0,0.35)";
+        c.fillRect(x + w - 4, y + 1, 3, h - 2);
+        break;
+
+      case "bench":
+        // 长条台面 + 两个支座 + 台面上的器皿
+        c.fillStyle = "#4a463c";
+        c.fillRect(x + 1, y + 4, w - 2, h - 10);
+        c.fillStyle = "#5c5749";
+        c.fillRect(x + 1, y + 4, w - 2, 2);
+        c.fillStyle = "#231d16";
+        c.fillRect(x + 4, y + h - 7, 3, 6);
+        c.fillRect(x + w - 7, y + h - 7, 3, 6);
+        for (var gl = 0; gl < Math.floor(w / 26); gl++) {
+          c.fillStyle = "rgba(150,170,160,0.35)";
+          c.beginPath();
+          c.arc(x + 12 + gl * 26, y + 6, 3, 0, 6.283);
+          c.fill();
+        }
+        break;
+
+      case "tank":
+        // 锅炉/水箱：圆柱 + 管道 + 压力表
+        c.fillStyle = "#2c2f2d";
+        c.fillRect(x + 2, y + 2, w - 4, h - 4);
+        c.fillStyle = "#3a3f3c";
+        c.fillRect(x + 3, y + 3, w - 6, 6);
+        c.fillStyle = "#202322";
+        c.fillRect(x + 3, y + h - 8, w - 6, 5);
+        c.fillStyle = "#4a4a42";
+        c.fillRect(x + w * 0.2, y, 3, h);
+        c.fillRect(x + w * 0.7, y, 3, h);
+        c.fillStyle = "rgba(190,80,70,0.45)";
+        c.beginPath();
+        c.arc(x + w / 2, y + h * 0.45, 3.2, 0, 6.283);
+        c.fill();
+        break;
     }
   },
 
@@ -913,5 +984,59 @@ var Renderer = {
     c.fillRect(0, 0, VW, VH);
 
     c.restore();
+  },
+
+  /* ================= 小地图：雾里只有你自己 ================= */
+  drawMinimap: function (g) {
+    if (!this.mmCv) {
+      this.mmCv = document.getElementById("minimap");
+      if (!this.mmCv) return;
+      this.mmCtx = this.mmCv.getContext("2d");
+    }
+    var c = this.mmCtx, W = this.mmCv.width, H = this.mmCv.height;
+    var sx = W / CFG.MAP_W, sy = H / CFG.MAP_H;
+    var T = CFG.TILE;
+
+    c.clearRect(0, 0, W, H);
+    c.fillStyle = "rgba(5,5,6,0.72)";
+    c.fillRect(0, 0, W, H);
+
+    // 已探索的地板：很淡的一层
+    var exp = g.explored && g.explored[g.floor];
+    if (exp) {
+      c.fillStyle = "rgba(176,160,132,0.34)";
+      for (var k in exp) {
+        var parts = k.split(",");
+        c.fillRect(parts[0] * sx, parts[1] * sy, sx + 0.6, sy + 0.6);
+      }
+      // 墙的轮廓：贴着已探索区域的墙，画得更暗
+      c.fillStyle = "rgba(104,94,78,0.42)";
+      for (var k2 in exp) {
+        var q = k2.split(",");
+        var qx = +q[0], qy = +q[1];
+        if (qx + 1 < CFG.MAP_W && World.grid[qy][qx + 1] === 0) c.fillRect((qx + 1) * sx, qy * sy, sx * 0.9, sy);
+        if (qx - 1 >= 0 && World.grid[qy][qx - 1] === 0) c.fillRect((qx - 1) * sx, qy * sy, sx * 0.9, sy);
+        if (qy + 1 < CFG.MAP_H && World.grid[qy + 1][qx] === 0) c.fillRect(qx * sx, (qy + 1) * sy, sx, sy * 0.9);
+        if (qy - 1 >= 0 && World.grid[qy - 1][qx] === 0) c.fillRect(qx * sx, (qy - 1) * sy, sx, sy * 0.9);
+      }
+    }
+
+    // 自己：一点光 + 朝向
+    var px = (g.player.x / T) * sx, py = (g.player.y / T) * sy;
+    var grd = c.createRadialGradient(px, py, 0, px, py, 18);
+    grd.addColorStop(0, "rgba(236,206,150,0.5)");
+    grd.addColorStop(1, "rgba(236,206,150,0)");
+    c.fillStyle = grd;
+    c.beginPath(); c.arc(px, py, 18, 0, 6.283); c.fill();
+
+    c.fillStyle = "rgba(250,232,190,0.95)";
+    c.beginPath(); c.arc(px, py, 2.3, 0, 6.283); c.fill();
+
+    c.strokeStyle = "rgba(250,232,190,0.85)";
+    c.lineWidth = 1.4;
+    c.beginPath();
+    c.moveTo(px, py);
+    c.lineTo(px + Math.cos(g.player.face) * 7, py + Math.sin(g.player.face) * 7);
+    c.stroke();
   }
 };

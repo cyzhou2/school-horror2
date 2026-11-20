@@ -67,10 +67,10 @@ var World = {
     // 物件
     this.props = lv.props.map(function (p, idx2) {
       var type = p.t;
-      var solid = !(p.decor || type === "clue" || type === "key" || type === "battery");
-      // 低矮家具：挡路，但不挡视线（桌椅、纸箱、洗手台、门牌等）
+      var solid = !(p.decor || type === "clue" || type === "key");
+      // 低矮家具：挡路，但不挡视线（桌椅、纸箱、洗手台、长条实验台等）
       var low = type === "desk" || type === "box" || type === "counter" ||
-        type === "sink" || type === "banner" || type === "barricade";
+        type === "sink" || type === "banner" || type === "barricade" || type === "bench";
       var dynamic = (type === "firedoor" || type === "lock" || type === "barricade");
       var o = {
         idx: idx2, t: type,
@@ -323,12 +323,10 @@ var World = {
       var inter = p.hide || p.clue || p.decor || p.t === "stairs" ||
         (p.t === "firedoor" && p.state !== "broken") ||
         (p.t === "lock" && p.state !== "open") ||
-        (p.t === "barricade" && p.state === "ready") ||
-        (p.t === "battery" && !p.taken) ||
+        (p.t === "barricade" && (p.state === "ready" || p.state === "blocking")) ||
         (p.key && p.revealed);
       if (!inter) continue;
       if (p.key && !p.revealed) continue;
-      if (p.t === "battery" && p.taken) continue;
       var rx = p.x * this.T, ry = p.y * this.T;
       var rw = p.w * this.T, rh = p.h * this.T;
       var cx = Math.max(rx, Math.min(px, rx + rw));

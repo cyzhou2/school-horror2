@@ -15,15 +15,16 @@ var CFG = {
   STAMINA_DRAIN: 26,
   STAMINA_REGEN: 19,
 
-  GHOST_PATROL: 56,
-  GHOST_SEARCH: 92,
-  GHOST_CHASE: 146,
+  GHOST_PATROL: 52,
+  GHOST_SEARCH: 76,
+  GHOST_CHASE: 96,
   GHOST_SIGHT: 250,
   GHOST_HEAR: 120,
   GHOST_CATCH: 24,
+  GHOST_LEASH: 470,      // 拉这么远就脱战
 
   /* 慢鬼：永不冲刺，只走最短路 */
-  SLOW_SPEED: 92,
+  SLOW_SPEED: 76,
   SLOW_HIDE_COUNT: 6.0,     // 在柜门外数到 6 就开门
   SLOW_CATCH: 26,
 
@@ -35,7 +36,9 @@ var CFG = {
   LIGHT_OFF: 92,
   NOISE_WALK: 46,
   NOISE_RUN: 210,
-  NOISE_ACT: 120
+  NOISE_ACT: 120,
+
+  MAX_DEATHS: 3          // 死够三次就是“自己也消失”的坏结局
 };
 
 /*
@@ -90,7 +93,6 @@ var LEVELS = [
       { t: "box", x: 36, y: 5, w: 2, h: 1 },
       { t: "box", x: 44, y: 11, w: 2, h: 1 },
       { t: "locker", x: 46, y: 4, w: 1, h: 1, hide: true, label: "躲进木柜" },
-      { t: "battery", x: 44, y: 6, label: "换上备用电池" },
       /* 北侧楼梯间（锁在梯段前） */
       { t: "lock", x: 49, y: 9, w: 12, h: 1, lock: "lock1", label: "消防门" },
       { t: "stairs", x: 54, y: 3, w: 4, h: 3, stairId: "north", label: "楼梯" },
@@ -106,7 +108,6 @@ var LEVELS = [
       /* 门房 */
       { t: "counter", x: 17, y: 38, w: 4, h: 1 },
       { t: "desk", x: 22, y: 38, w: 2, h: 1, hide: true, label: "钻到桌下" },
-      { t: "battery", x: 27, y: 44, label: "换上备用电池" },
       /* 更衣室 */
       { t: "locker", x: 32, y: 36, w: 1, h: 1, hide: true, label: "躲进衣柜" },
       { t: "locker", x: 33, y: 36, w: 1, h: 1, hide: true, label: "躲进衣柜" },
@@ -124,7 +125,22 @@ var LEVELS = [
       { t: "box", x: 36, y: 16, w: 2, h: 1, decor: true, label: "看倒下的柜子" },
       { t: "firedoor", x: 30, y: 16, w: 1, h: 5, doorId: "d1a" },
       { t: "firedoor", x: 48, y: 29, w: 1, h: 5, doorId: "d1b" },
-      { t: "barricade", x: 20, y: 33, w: 1, h: 1, barId: "b1", bx: 20, by: 29, bw: 1, bh: 5, label: "把桌椅推过去堵住" }
+      { t: "barricade", x: 20, y: 33, w: 1, h: 1, barId: "b1", bx: 20, by: 29, bw: 1, bh: 5, label: "把桌椅推过去堵住" },
+      /* 房间特质家具 */
+      { t: "cabinet", x: 3, y: 11, w: 2, h: 2 },
+      { t: "shelf", x: 13, y: 4, w: 2, h: 2 },
+      { t: "bench", x: 24, y: 5, w: 3, h: 1 },
+      { t: "shelf", x: 26, y: 11, w: 2, h: 2 },
+      { t: "shelf", x: 38, y: 7, w: 2, h: 2 },
+      { t: "tank", x: 41, y: 4, w: 2, h: 2 },
+      { t: "bench", x: 36, y: 25, w: 3, h: 1 },
+      { t: "cabinet", x: 43, y: 22, w: 2, h: 2 },
+      { t: "cabinet", x: 26, y: 36, w: 2, h: 2 },
+      { t: "bench", x: 18, y: 43, w: 3, h: 1 },
+      { t: "bench", x: 36, y: 38, w: 3, h: 1 },
+      { t: "cabinet", x: 40, y: 42, w: 2, h: 2 },
+      { t: "shelf", x: 52, y: 36, w: 2, h: 2 },
+      { t: "tank", x: 55, y: 43, w: 2, h: 2 }
     ]
   },
 
@@ -194,7 +210,6 @@ var LEVELS = [
       { t: "desk", x: 38, y: 38, w: 2, h: 1, hide: true, label: "钻到办公桌下" },
       { t: "desk", x: 42, y: 38, w: 2, h: 1, hide: true, label: "钻到办公桌下" },
       { t: "box", x: 34, y: 44, w: 2, h: 1 },
-      { t: "battery", x: 45, y: 44, label: "换上备用电池" },
       /* 准备室 */
       { t: "box", x: 50, y: 37, w: 2, h: 1 },
       { t: "box", x: 54, y: 42, w: 2, h: 1 },
@@ -209,7 +224,19 @@ var LEVELS = [
       { t: "board", x: 20, y: 16, w: 4, h: 1, decor: true, label: "看墙上的照片" },
       { t: "firedoor", x: 30, y: 16, w: 1, h: 5, doorId: "d2a" },
       { t: "firedoor", x: 48, y: 29, w: 1, h: 5, doorId: "d2b" },
-      { t: "barricade", x: 20, y: 33, w: 1, h: 1, barId: "b2", bx: 20, by: 29, bw: 1, bh: 5, label: "把桌椅推过去堵住" }
+      { t: "barricade", x: 20, y: 33, w: 1, h: 1, barId: "b2", bx: 20, by: 29, bw: 1, bh: 5, label: "把桌椅推过去堵住" },
+      /* 房间特质家具 */
+      { t: "shelf", x: 16, y: 4, w: 2, h: 2 },
+      { t: "cabinet", x: 3, y: 12, w: 2, h: 2 },
+      { t: "cabinet", x: 30, y: 12, w: 2, h: 2 },
+      { t: "cabinet", x: 43, y: 4, w: 2, h: 2 },
+      { t: "tank", x: 35, y: 12, w: 2, h: 1 },
+      { t: "shelf", x: 22, y: 36, w: 3, h: 1 },
+      { t: "cabinet", x: 20, y: 43, w: 2, h: 2 },
+      { t: "shelf", x: 44, y: 42, w: 2, h: 2 },
+      { t: "cabinet", x: 33, y: 36, w: 2, h: 2 },
+      { t: "shelf", x: 52, y: 39, w: 2, h: 2 },
+      { t: "tank", x: 56, y: 44, w: 2, h: 2 }
     ]
   },
 
@@ -259,7 +286,6 @@ var LEVELS = [
       { t: "box", x: 37, y: 6, w: 2, h: 1 },
       { t: "box", x: 44, y: 11, w: 2, h: 1 },
       { t: "locker", x: 46, y: 4, w: 1, h: 1, hide: true, label: "躲进档案柜" },
-      { t: "battery", x: 41, y: 12, label: "换上备用电池" },
       /* 北侧楼梯间 */
       { t: "lock", x: 49, y: 9, w: 12, h: 1, lock: "lock3", label: "断电连锁门" },
       { t: "stairs", x: 54, y: 3, w: 4, h: 3, stairId: "north", label: "楼梯" },
@@ -289,7 +315,20 @@ var LEVELS = [
       { t: "box", x: 24, y: 16, w: 2, h: 1, decor: true, label: "看塌下来的吊顶" },
       { t: "firedoor", x: 30, y: 16, w: 1, h: 5, doorId: "d3a" },
       { t: "firedoor", x: 48, y: 29, w: 1, h: 5, doorId: "d3b" },
-      { t: "barricade", x: 20, y: 33, w: 1, h: 1, barId: "b3", bx: 20, by: 29, bw: 1, bh: 5, label: "把桌椅推过去堵住" }
+      { t: "barricade", x: 20, y: 33, w: 1, h: 1, barId: "b3", bx: 20, by: 29, bw: 1, bh: 5, label: "把桌椅推过去堵住" },
+      /* 房间特质家具 */
+      { t: "shelf", x: 11, y: 4, w: 2, h: 2 },
+      { t: "shelf", x: 11, y: 11, w: 2, h: 2 },
+      { t: "shelf", x: 22, y: 11, w: 2, h: 2 },
+      { t: "cabinet", x: 29, y: 9, w: 2, h: 2 },
+      { t: "shelf", x: 40, y: 4, w: 2, h: 2 },
+      { t: "shelf", x: 40, y: 9, w: 2, h: 2 },
+      { t: "tank", x: 22, y: 36, w: 2, h: 2 },
+      { t: "cabinet", x: 26, y: 38, w: 2, h: 2 },
+      { t: "bench", x: 33, y: 36, w: 4, h: 1 },
+      { t: "shelf", x: 43, y: 42, w: 2, h: 2 },
+      { t: "shelf", x: 53, y: 36, w: 2, h: 2 },
+      { t: "tank", x: 56, y: 41, w: 2, h: 2 }
     ]
   }
 ];
@@ -529,6 +568,19 @@ var STORY = {
         "三天后，封校公告被撤下，新的公告只有一句话：本校将配合有关部门就学生林雨桐死亡事件重新调查。"
       ],
       final: "没有直播间，没有弹幕，没有涨粉。<br>这一次，事情只是被说清楚了。"
+    },
+    vanish: {
+      label: "结局 · 消失",
+      title: "第三次",
+      paras: [
+        "第一次，你听见自己的心跳盖过了弹幕，还笑着跟观众说没事。",
+        "第二次，画面上开始泛红，弹幕在刷「主播脸色不对」，你关掉了那条提示。",
+        "第三次，镜头被撞翻，手机掉在地上，画面朝上，只拍到天花板和一盏晃动的灯。",
+        "直播间里还有六万人在看。画面里没有人，只有一盏手电筒的光慢慢熄灭。",
+        "后来警方在三楼储物间找到两台设备、一只还在闪烁的手机，和一件没有人穿的外套。",
+        "卷宗上写的是「失踪」。第七十三天的封校，继续到第八十天。"
+      ],
+      final: "直播回放被平台下架了，但有人保存了。<br>那是一段没有人出镜的 47 秒。"
     }
   },
   deadChat: [
