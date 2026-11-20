@@ -5,6 +5,7 @@ var Input = {
   keys: Object.create(null),
   axisX: 0, axisY: 0,
   runKey: false,
+  runToggle: false,
   touchRun: false,
   touchMode: false,
   actionQueued: false,
@@ -22,8 +23,27 @@ var Input = {
     this.dom.btnLive = document.getElementById("btnLive");
 
     /* ---------- 键盘 ---------- */
+    // CapsLock（大小写锁定）本身就是跑步开关；Shift 临时反转
+    var syncCaps = function (e) {
+      if (typeof e.getModifierState !== "function") return;
+      var on = false;
+      try { on = e.getModifierState("CapsLock"); } catch (err) { return; }
+      if (on !== self.runToggle) {
+        self.runToggle = on;
+        self.syncRunUi(true);
+      }
+    };
     window.addEventListener("keydown", function (e) {
       var k = e.key.toLowerCase();
+      if (k === "capslock") {
+        e.preventDefault();
+        // 直接读物理锁定状态（有的浏览器会连发两次 keydown，切换式会跳两下）
+        var caps = false;
+        try { caps = e.getModifierState ? e.getModifierState("CapsLock") : !self.runToggle; } catch (err) { caps = !self.runToggle; }
+        self.setRunToggle(caps);
+        self.syncRunUi(true);
+        return;
+      }
       if (["arrowup", "arrowdown", "arrowleft", "arrowright", " ", "spacebar"].indexOf(k) >= 0) e.preventDefault();
       self.keys[k] = true;
       if (k === " " || k === "e") self.actionQueued = true;
@@ -35,11 +55,13 @@ var Input = {
       if (["w", "a", "s", "d", "arrowup", "arrowdown", "arrowleft", "arrowright"].indexOf(k) >= 0) {
         if (Game.cancelAutoMove) Game.cancelAutoMove();
       }
+      syncCaps(e);
     });
     window.addEventListener("keyup", function (e) {
       var k = e.key.toLowerCase();
       self.keys[k] = false;
       if (k === "shift") self.runKey = false;
+      syncCaps(e);
     });
     window.addEventListener("blur", function () {
       self.keys = Object.create(null);
@@ -117,8 +139,10 @@ var Input = {
     };
 
     bindPress(this.dom.btnAct, function () { self.actionQueued = true; }, null);
-    bindPress(this.dom.btnRun, function () { self.touchRun = true; }, function () { self.touchRun = false; });
+    // 手机上跑步是“开关”：点一下切换（相当于大小写锁定）
+    bindPress(this.dom.btnRun, function () { self.toggleRun(); }, null);
     bindPress(this.dom.btnLive, function () { self.liveQueued = true; }, null);
+    this.syncRunUi();
   },
 
   updateStick: function (p) {
@@ -156,8 +180,31 @@ var Input = {
     return { x: 0, y: 0 };
   },
 
+  /* 跑步是“开关”式的：CapsLock 切状态，Shift 临时把它反过来 */
   wantsRun: function () {
-    return this.runKey || this.touchRun;
+    return (this.runToggle ? !this.runKey : this.runKey);
+  },
+
+  setRunToggle: function (v) {
+    this.runToggle = !!v;
+    this.syncRunUi();
+  },
+
+  toggleRun: function () {
+    this.setRunToggle(!this.runToggle);
+    this.syncRunUi(true);
+  },
+
+  syncRunUi: function (announce) {
+    var b = this.dom && this.dom.btnRun;
+    var on = this.runToggle;
+    if (b) {
+      b.textContent = on ? "走" : "跑";
+      b.classList.toggle("on", on);
+    }
+    if (announce && typeof Game !== "undefined" && Game.toast) {
+      Game.toast(on ? "跑" : "走", on ? "现在按住方向会跑，Shift 临时改成走" : "现在按住方向是走，Shift 临时改成跑", 2000);
+    }
   },
 
   takeAction: function () {
