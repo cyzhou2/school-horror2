@@ -156,6 +156,7 @@ var Game = {
     this.buzzHinted = false;
     this.deathCount = 0;
     this.updateBlood();
+    this.peakViewers = this.live.viewers;
     this.explored = [{}, {}, {}];
     this.exploreT = 0;
 
@@ -380,6 +381,9 @@ var Game = {
     var musI = nearestGhost < 620 ? Math.max(0, 1 - nearestGhost / 620) : 0;
     AudioSys.musicTick(dt, musI);
     AudioSys.musicLevel(musI);
+
+    // 峰值观众（结局结算用）
+    this.peakViewers = Math.max(this.peakViewers || 0, this.live.viewers);
     if (g.active) {
       this.flickerT -= dt;
       if (this.flickerT <= 0) {
@@ -1101,6 +1105,21 @@ var Game = {
     document.getElementById("endingTitle").textContent = e.title;
     var html = e.paras.map(function (p) { return "<p>" + p + "</p>"; }).join("");
     html += '<div class="final">' + e.final + "</div>";
+
+    // 结算：粉丝数是主要指标
+    var peak = Math.floor(this.peakViewers || this.live.viewers);
+    var fin = Math.floor(this.live.viewers);
+    var mins = Math.floor(this.time / 60), secs = Math.floor(this.time % 60);
+    var grew = fin - 127;
+    html += '<div class="settle">' +
+      '<div class="settle-row"><span>峰值在线</span><b>' + peak.toLocaleString("en-US") + '</b></div>' +
+      '<div class="settle-row"><span>下播时在线</span><b>' + fin.toLocaleString("en-US") + '</b></div>' +
+      '<div class="settle-row"><span>涨粉</span><b class="' + (grew >= 0 ? "up" : "down") + '">' +
+      (grew >= 0 ? "+" : "") + grew.toLocaleString("en-US") + '</b></div>' +
+      '<div class="settle-row"><span>线索</span><b>' + this.clueCount + ' / 6</b></div>' +
+      '<div class="settle-row"><span>被抓</span><b>' + (this.deathCount || 0) + ' 次</b></div>' +
+      '<div class="settle-row"><span>用时</span><b>' + mins + ":" + (secs < 10 ? "0" : "") + secs + '</b></div>' +
+      '</div>';
     document.getElementById("endingBody").innerHTML = html;
     document.getElementById("endingScreen").classList.remove("hidden");
 
@@ -1109,6 +1128,7 @@ var Game = {
       localStorage.setItem("schoolHorror_cleared", kind);
       localStorage.setItem("schoolHorror_time", String(Math.floor(this.time)));
       localStorage.setItem("schoolHorror_clues", String(this.clueCount));
+      localStorage.setItem("schoolHorror_viewers", String(peak));
     } catch (err) { /* 隐私模式下忽略 */ }
 
     var poolKey = kind === "black" || kind === "vanish" ? "endingBad" : "endingGood";

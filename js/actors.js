@@ -159,13 +159,16 @@ var Ghost = {
   },
 
   speedOf: function (g) {
-    var heat = g.live.heat;
-    // 追逐速度封顶在玩家走路速度（104）之下，跑起来一定能拉开
-    var chase = Math.min(101, CFG.GHOST_CHASE + heat * 0.06);
-    if (this.state === "chase") return chase;
-    if (this.state === "hunt") return Math.min(96, chase * 0.94);
-    if (this.state === "alert" || this.state === "search") return CFG.GHOST_SEARCH + heat * 0.1;
-    return CFG.GHOST_PATROL + heat * 0.08;
+    // 粉丝越多越快，但有上限：2/(1+e^(-v/K))-1 = tanh(v/2K)，0→0，∞→1
+    var v = Math.max(0, g.live.viewers || 0);
+    var k = CFG.VIEWER_K || 2200;
+    var t = 2 / (1 + Math.exp(-v / k)) - 1;
+    var base = CFG.GHOST_FAST_MIN + (CFG.GHOST_FAST_MAX - CFG.GHOST_FAST_MIN) * t;
+
+    if (this.state === "chase") return base;
+    if (this.state === "hunt") return base * 0.92;
+    if (this.state === "alert" || this.state === "search") return base * 0.8;
+    return base * 0.6;
   },
 
   sightRange: function (g) {

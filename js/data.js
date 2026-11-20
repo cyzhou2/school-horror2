@@ -18,6 +18,13 @@ var CFG = {
   GHOST_PATROL: 52,
   GHOST_SEARCH: 76,
   GHOST_CHASE: 96,
+  /* 快鬼速度：由粉丝数决定（逻辑斯蒂曲线）
+     v(粉丝) = MIN + (MAX-MIN) * [2/(1+e^(-v/K)) - 1]
+     0 人 → MIN（很慢）；粉丝拉满 → MAX（封顶） */
+  GHOST_FAST_MIN: 70,
+  GHOST_FAST_MAX: 132,
+  VIEWER_K: 2200,        // 粉丝常数：到这个量级，速度已经接近上限的一半多
+  OFFSTREAM_TAU: 40,     // 关播后粉丝按 e^(-t/τ) 衰减
   GHOST_SIGHT: 250,
   GHOST_HEAR: 120,
   GHOST_CATCH: 24,

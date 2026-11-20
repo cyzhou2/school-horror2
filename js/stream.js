@@ -107,8 +107,10 @@ var Live = {
       this.viewers += dt * (0.25 + this.heat * 0.24 + near * 6);
       this.spurt -= dt;
     } else {
+      // 关播：粉丝按负指数衰减（e^(-t/τ)）
       this.heat = Math.max(0, this.heat - 14 * dt);
-      this.viewers *= (1 - 0.012 * dt);
+      var tau = CFG.OFFSTREAM_TAU || 40;
+      this.viewers *= Math.exp(-dt / tau);
       this.spurt = 0;
     }
 
