@@ -683,15 +683,29 @@ var Game = {
 
   wakeGhost: function () {
     if (this.ghost.active) return;
-    this.ghost.wake();
+    var g = this.ghost;
+    var T = CFG.TILE;
+    var sp = LEVELS[this.floor].ghostSpawn;
+    // 别刷在玩家脸上：挑离玩家最远的候选点
+    var cands = [{ x: sp.x, y: sp.y }, { x: 5, y: 19 }, { x: 57, y: 19 }, { x: 30, y: 19 }];
+    var best = cands[0], bestD = -1;
+    for (var i = 0; i < cands.length; i++) {
+      var dx = cands[i].x * T - this.player.x;
+      var dy = cands[i].y * T - this.player.y;
+      var d = dx * dx + dy * dy;
+      if (d > bestD) { bestD = d; best = cands[i]; }
+    }
+    g.spawn(best.x * T, best.y * T);
+    g.wake();
+    g.freezeT = 2.4;
     AudioSys.stinger("wake");
     this.live.event("wake");
     var self = this;
     setTimeout(function () {
       if (self.inGame && self.state === "play") {
-        self.toast("她醒了", "器材室的门自己开了");
+        self.toast("她醒了", "很远的地方，有门被推开了");
       }
-    }, 900);
+    }, 1200);
     this.shake = 0.6;
   },
 

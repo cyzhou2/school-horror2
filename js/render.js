@@ -661,6 +661,32 @@ var Renderer = {
     c.restore();
   },
 
+  /* 射线可见多边形（屏幕坐标）：光被墙和门切断 */
+  rayPolygon: function (wx, wy, cam, maxD, a0, a1, n) {
+    var pts = [];
+    var full = (a1 - a0) >= Math.PI * 1.99;
+    for (var i = 0; i <= n; i++) {
+      var ang = full ? (i / n) * Math.PI * 2 : a0 + (a1 - a0) * (i / n);
+      var d = World.rayDist(wx, wy, ang, maxD);
+      pts.push({ x: wx + Math.cos(ang) * d - cam.x, y: wy + Math.sin(ang) * d - cam.y });
+    }
+    return pts;
+  },
+
+  fillPoly: function (ctx, pts, cx, cy, r, op) {
+    var grd = ctx.createRadialGradient(cx, cy, 6, cx, cy, r);
+    grd.addColorStop(0, "rgba(0,0,0," + (0.98 * op) + ")");
+    grd.addColorStop(0.45, "rgba(0,0,0," + (0.85 * op) + ")");
+    grd.addColorStop(0.78, "rgba(0,0,0," + (0.34 * op) + ")");
+    grd.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = grd;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    for (var i = 0; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+    ctx.closePath();
+    ctx.fill();
+  },
+
   /* ================= 光照 ================= */
   drawLight: function (g) {
     var c = this.ctx, L = this.lctx, VW = CFG.VIEW_W, VH = CFG.VIEW_H;
@@ -681,6 +707,7 @@ var Renderer = {
 
     L.globalCompositeOperation = "destination-out";
 
+    var conePoly = null;
     if (hidden) {
       // 躲藏时：一条横向的柜门缝视野
       L.save();
@@ -700,50 +727,27 @@ var Renderer = {
       L.fillStyle = hRad2;
       L.beginPath(); L.arc(s.x, s.y, 52, 0, 6.283); L.fill();
     } else {
-      // 身周微光
-      var rad = L.createRadialGradient(s.x, s.y, 4, s.x, s.y, R);
-      rad.addColorStop(0, "rgba(0,0,0,1)");
-      rad.addColorStop(0.42, "rgba(0,0,0,0.82)");
-      rad.addColorStop(0.75, "rgba(0,0,0,0.28)");
-      rad.addColorStop(1, "rgba(0,0,0,0)");
-      L.fillStyle = rad;
-      L.beginPath(); L.arc(s.x, s.y, R, 0, 6.283); L.fill();
+      // 身周微光：被墙与门切断
+      var poly = this.rayPolygon(p.x, p.y, g.cam, R, 0, Math.PI * 2, 180);
+      this.fillPoly(L, poly, s.x, s.y, R, 1);
+
+      // 手电筒锥形：同样被切断
+      if (g.lightOn) {
+        var len = 380, half = 0.46;
+        conePoly = this.rayPolygon(p.x, p.y, g.cam, len, p.face - half, p.face + half, 64);
+        this.fillPoly(L, conePoly, s.x, s.y, len, 0.85);
+        // 外侧柔光
+        var fringePoly = this.rayPolygon(p.x, p.y, g.cam, len * 0.92, p.face - half * 1.45, p.face + half * 1.45, 56);
+        this.fillPoly(L, fringePoly, s.x, s.y, len, 0.32);
+      }
     }
 
-    // 手电筒锥形
-    if (!hidden && g.lightOn) {
-      var ang = p.face;
-      var len = 380, half = 0.46;
-
-      // 外侧柔光，让边缘不那么生硬
-      var fringe = L.createRadialGradient(s.x, s.y, 20, s.x, s.y, len * 1.05);
-      fringe.addColorStop(0, "rgba(0,0,0,0.5)");
-      fringe.addColorStop(0.6, "rgba(0,0,0,0.28)");
-      fringe.addColorStop(1, "rgba(0,0,0,0)");
-      L.fillStyle = fringe;
-      L.beginPath();
-      L.moveTo(s.x, s.y);
-      L.arc(s.x, s.y, len * 1.05, ang - half * 1.45, ang + half * 1.45);
-      L.closePath();
-      L.fill();
-
-      var lg = L.createRadialGradient(s.x, s.y, 12, s.x, s.y, len);
-      lg.addColorStop(0, "rgba(0,0,0,0.95)");
-      lg.addColorStop(0.55, "rgba(0,0,0,0.55)");
-      lg.addColorStop(1, "rgba(0,0,0,0)");
-      L.fillStyle = lg;
-      L.beginPath();
-      L.moveTo(s.x, s.y);
-      L.arc(s.x, s.y, len, ang - half, ang + half);
-      L.closePath();
-      L.fill();
-    }
-
-    // 附近光源：线索、门缝
+    // 附近光源：线索、钥匙、门缝
     for (var i = 0; i < World.props.length; i++) {
       var pr = World.props[i];
       var glowR = 0;
       if (pr.clue && !g.clues[pr.clue]) glowR = 62;
+      else if (pr.t === "key" && pr.revealed) glowR = 46;
       else if (pr.t === "exit") glowR = 96;
       if (!glowR) continue;
       if (!World.los(g.player.x, g.player.y, pr.px, pr.py)) continue;
@@ -759,8 +763,8 @@ var Renderer = {
     L.globalCompositeOperation = "source-over";
     c.drawImage(this.light, 0, 0);
 
-    // 手电筒暖色叠加（很淡）
-    if (!hidden && g.lightOn) {
+    // 手电筒暖色叠加（同样被遮挡）
+    if (!hidden && g.lightOn && conePoly) {
       c.globalCompositeOperation = "lighter";
       var wg = c.createRadialGradient(s.x, s.y, 10, s.x, s.y, 380);
       wg.addColorStop(0, "rgba(120,104,70,0.10)");
@@ -768,7 +772,7 @@ var Renderer = {
       c.fillStyle = wg;
       c.beginPath();
       c.moveTo(s.x, s.y);
-      c.arc(s.x, s.y, 380, p.face - 0.46, p.face + 0.46);
+      for (var k = 0; k < conePoly.length; k++) c.lineTo(conePoly[k].x, conePoly[k].y);
       c.closePath();
       c.fill();
       c.globalCompositeOperation = "source-over";

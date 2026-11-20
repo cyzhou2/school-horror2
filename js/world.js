@@ -26,10 +26,12 @@ var World = {
 
     this.grid = [];
     this.solid = [];
+    this.tall = [];
     this.dyn = [];
     for (j = 0; j < H; j++) {
       this.grid.push(new Array(W).fill(0));
       this.solid.push(new Array(W).fill(0));
+      this.tall.push(new Array(W).fill(0));
       this.dyn.push(new Array(W).fill(0));
     }
 
@@ -56,6 +58,9 @@ var World = {
     this.props = lv.props.map(function (p, idx2) {
       var type = p.t;
       var solid = !(p.decor || type === "clue" || type === "key");
+      // 低矮家具：挡路，但不挡视线（桌椅、纸箱、洗手台、门牌等）
+      var low = type === "desk" || type === "box" || type === "counter" ||
+        type === "sink" || type === "banner" || type === "barricade";
       var dynamic = (type === "firedoor" || type === "lock" || type === "barricade");
       var o = {
         idx: idx2, t: type,
@@ -67,6 +72,7 @@ var World = {
         px: (p.x + (p.w || 1) / 2) * CFG.TILE,
         py: (p.y + (p.h || 1) / 2) * CFG.TILE,
         dynamic: dynamic,
+        low: low,
         state: dynamic ? (type === "barricade" ? "ready" : "closed") : "static",
         solid: solid && !dynamic,
         hiddenInside: false,
@@ -77,15 +83,15 @@ var World = {
     });
     this.props.forEach(function (p) {
       if (!p.solid) return;
-      this.fillSolid(p, 1);
+      this.fillSolid(p, 1, this.solid);
+      if (!p.low) this.fillSolid(p, 1, this.tall);
     }, this);
 
     this.refreshDoors();
     return this;
   },
 
-  fillSolid: function (p, v) {
-    var arr = p.dynamic ? this.dyn : this.solid;
+  fillSolid: function (p, v, arr) {
     for (var y = Math.floor(p.y); y < Math.ceil(p.y + p.h); y++)
       for (var x = Math.floor(p.x); x < Math.ceil(p.x + p.w); x++)
         if (this.inBounds(x, y)) arr[y][x] = v;
@@ -95,7 +101,7 @@ var World = {
   refreshDoors: function () {
     for (var y = 0; y < CFG.MAP_H; y++) this.dyn[y].fill(0);
     this.props.forEach(function (p) {
-      if (p.dynamic && p.state === "closed") this.fillSolid(p, 1);
+      if (p.dynamic && p.state === "closed") this.fillSolid(p, 1, this.dyn);
       if (p.t === "barricade" && p.state === "blocking") {
         for (var y = 17; y <= 21; y++) if (this.inBounds(p.x, y)) this.dyn[y][p.x] = 1;
       }
@@ -117,6 +123,12 @@ var World = {
   blocked: function (tx, ty) {
     if (!this.inBounds(tx, ty)) return true;
     return this.grid[ty][tx] === 0 || this.solid[ty][tx] === 1 || this.dyn[ty][tx] === 1;
+  },
+
+  /* 挡视线：墙、高柜、隔间、关着的门。低矮家具（桌椅纸箱）不挡 */
+  opaque: function (tx, ty) {
+    if (!this.inBounds(tx, ty)) return true;
+    return this.grid[ty][tx] === 0 || this.tall[ty][tx] === 1 || this.dyn[ty][tx] === 1;
   },
 
   circleHits: function (x, y, r) {
@@ -163,9 +175,22 @@ var World = {
       var t = i / steps;
       var tx = Math.floor((x1 + dx * t) / T);
       var ty = Math.floor((y1 + dy * t) / T);
-      if (this.blocked(tx, ty)) return false;
+      if (this.opaque(tx, ty)) return false;
     }
     return true;
+  },
+
+  /* 沿射线走到第一个遮挡物（光照用）：返回距离 */
+  rayDist: function (x1, y1, ang, maxDist) {
+    var T = this.T;
+    var cs = Math.cos(ang), sn = Math.sin(ang);
+    var step = 4;
+    for (var d = step; d < maxDist; d += step) {
+      var tx = Math.floor((x1 + cs * d) / T);
+      var ty = Math.floor((y1 + sn * d) / T);
+      if (this.opaque(tx, ty)) return Math.max(0, d - step * 0.5);
+    }
+    return maxDist;
   },
 
   findPath: function (sx, sy, gx, gy) {
