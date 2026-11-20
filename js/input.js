@@ -139,8 +139,21 @@ var Input = {
     };
 
     bindPress(this.dom.btnAct, function () { self.actionQueued = true; }, null);
-    // 手机上跑步是“开关”：点一下切换（相当于大小写锁定）
-    bindPress(this.dom.btnRun, function () { self.toggleRun(); }, null);
+    // 手机上跑步是“开关”（相当于大小写锁定）：点一下切换，不随松手复位
+    var runBtn = this.dom.btnRun;
+    if (runBtn) {
+      var lastTap = 0;
+      var onTap = function (e) {
+        if (e && e.preventDefault) e.preventDefault();
+        var now = (window.performance && performance.now) ? performance.now() : Date.now();
+        if (now - lastTap < 130) return;      // 防止 pointerdown + click 连发
+        lastTap = now;
+        enableTouch();
+        self.toggleRun();
+      };
+      runBtn.addEventListener("pointerdown", onTap);
+      runBtn.addEventListener("click", onTap);
+    }
     bindPress(this.dom.btnLive, function () { self.liveQueued = true; }, null);
     this.syncRunUi();
   },
