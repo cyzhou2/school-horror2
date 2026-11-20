@@ -28,11 +28,13 @@ var World = {
     this.solid = [];
     this.tall = [];
     this.dyn = [];
+    this.dynOp = [];
     for (j = 0; j < H; j++) {
       this.grid.push(new Array(W).fill(0));
       this.solid.push(new Array(W).fill(0));
       this.tall.push(new Array(W).fill(0));
       this.dyn.push(new Array(W).fill(0));
+      this.dynOp.push(new Array(W).fill(0));
     }
 
     // 房间
@@ -97,11 +99,14 @@ var World = {
         if (this.inBounds(x, y)) arr[y][x] = v;
   },
 
-  /* 门/锁的开合会改变通行性 */
+  /* 门/锁/堵门会改变通行性；只有门和锁挡视线，桌椅不挡 */
   refreshDoors: function () {
-    for (var y = 0; y < CFG.MAP_H; y++) this.dyn[y].fill(0);
+    for (var y = 0; y < CFG.MAP_H; y++) { this.dyn[y].fill(0); this.dynOp[y].fill(0); }
     this.props.forEach(function (p) {
-      if (p.dynamic && p.state === "closed") this.fillSolid(p, 1, this.dyn);
+      if (p.dynamic && p.state === "closed") {
+        this.fillSolid(p, 1, this.dyn);
+        this.fillSolid(p, 1, this.dynOp);
+      }
       if (p.t === "barricade" && p.state === "blocking") {
         for (var y = 17; y <= 21; y++) if (this.inBounds(p.x, y)) this.dyn[y][p.x] = 1;
       }
@@ -130,7 +135,23 @@ var World = {
     if (!this.inBounds(tx, ty)) return true;
     var ig = this.ignoreRect;
     if (ig && tx >= ig.x0 && tx < ig.x1 && ty >= ig.y0 && ty < ig.y1) return false;
-    return this.grid[ty][tx] === 0 || this.tall[ty][tx] === 1 || this.dyn[ty][tx] === 1;
+    return this.grid[ty][tx] === 0 || this.tall[ty][tx] === 1 || this.dynOp[ty][tx] === 1;
+  },
+
+  /* 卡进实体里时，找最近的可站立点 */
+  nearestFree: function (x, y, r) {
+    if (!this.circleHits(x, y, r)) return { x: x, y: y };
+    var T = this.T;
+    for (var rad = 1; rad <= 4; rad++) {
+      for (var dy = -rad; dy <= rad; dy++) {
+        for (var dx = -rad; dx <= rad; dx++) {
+          if (Math.max(Math.abs(dx), Math.abs(dy)) !== rad) continue;
+          var nx = x + dx * T, ny = y + dy * T;
+          if (!this.circleHits(nx, ny, r)) return { x: nx, y: ny };
+        }
+      }
+    }
+    return { x: x, y: y };
   },
 
   circleHits: function (x, y, r) {

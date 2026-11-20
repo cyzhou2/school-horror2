@@ -25,6 +25,10 @@ var Player = {
   },
 
   update: function (dt, g) {
+    if (!this.hidden && World.circleHits(this.x, this.y, this.r)) {
+      var f = World.nearestFree(this.x, this.y, this.r);
+      this.x = f.x; this.y = f.y;
+    }
     if (this.hidden) {
       this.moving = false;
       this.running = false;
@@ -194,6 +198,10 @@ var Ghost = {
 
   update: function (dt, g) {
     if (!this.active) return;
+    if (World.circleHits(this.x, this.y, this.r)) {
+      var fz = World.nearestFree(this.x, this.y, this.r);
+      this.x = fz.x; this.y = fz.y; this.path = [];
+    }
     var p = g.player;
 
     this.perceiveT -= dt;
@@ -475,6 +483,10 @@ var SlowGhost = {
 
   update: function (dt, g) {
     if (!this.active) return;
+    if (World.circleHits(this.x, this.y, this.r)) {
+      var fz = World.nearestFree(this.x, this.y, this.r);
+      this.x = fz.x; this.y = fz.y; this.path = [];
+    }
     var p = g.player;
 
     // 换层途中

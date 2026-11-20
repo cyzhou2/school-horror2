@@ -8,6 +8,7 @@ var Live = {
   spawnT: 1.5,
   warnCd: 4,
   spurt: 0,
+  silenceT: 0,
   dom: {},
   items: [],
 
@@ -18,6 +19,7 @@ var Live = {
     this.spawnT = 1.4;
     this.warnCd = 5;
     this.spurt = 0;
+    this.silenceT = 0;
     var box = this.dom.box;
     if (box) box.innerHTML = "";
     this.items = [];
@@ -39,14 +41,30 @@ var Live = {
     if (this.dom.heat) this.dom.heat.style.width = Math.max(0, Math.min(100, this.heat)) + "%";
     if (this.dom.badge) {
       this.dom.badge.classList.toggle("off", !this.on);
-      var label = this.on ? "LIVE" : "已关播";
+      var label = this.on ? (this.silenceT > 0 ? "限流" : "LIVE") : "已关播";
       this.dom.badge.innerHTML = '<span class="dot"></span>' + label;
+      this.dom.badge.classList.toggle("silenced", this.on && this.silenceT > 0);
     }
     if (this.dom.status) {
-      this.dom.status.textContent = this.on
-        ? (this.heat > 70 ? "热度爆了" : this.heat > 40 ? "人气上升中" : "直播中")
-        : "信号已断开";
+      if (this.silenceT > 0 && this.on) {
+        this.dom.status.textContent = "平台限流 " + Math.ceil(this.silenceT) + " 秒";
+      } else if (!this.on) {
+        this.dom.status.textContent = "信号已断开";
+      } else {
+        this.dom.status.textContent = this.heat > 70 ? "热度爆了" : this.heat > 40 ? "人气上升中" : "直播中";
+      }
     }
+  },
+
+  /* 死亡惩罚 A：平台限流 —— 弹幕消失、热度清零、人数砍半 */
+  punish: function () {
+    this.viewers = Math.max(90, Math.floor(this.viewers * 0.5));
+    this.heat = 0;
+    this.silenceT = 90;
+    var box = this.dom.box;
+    if (box) box.innerHTML = "";
+    this.items = [];
+    this.syncHud();
   },
 
   toggle: function (g) {
@@ -74,6 +92,13 @@ var Live = {
       var dx = g.player.x - gh.x, dy = g.player.y - gh.y;
       var d = Math.sqrt(dx * dx + dy * dy);
       near = d < 320 ? (1 - d / 320) : 0;
+    }
+
+    if (this.silenceT > 0) {
+      this.silenceT = Math.max(0, this.silenceT - dt);
+      if (this.silenceT === 0) this.say("【系统】限流解除", "hot");
+      this.syncHud();
+      return;
     }
 
     if (this.on) {

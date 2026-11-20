@@ -374,6 +374,35 @@ var AudioSys = {
     src.start(t); src.stop(t + 1.2);
   },
 
+  /* 手机震动（人气太高时弹幕提示音） */
+  buzz: function () {
+    if (!this.ctx) return;
+    var ctx = this.ctx, t = ctx.currentTime;
+    for (var i = 0; i < 2; i++) {
+      var o = ctx.createOscillator();
+      o.type = "square";
+      o.frequency.value = 78;
+      var g = ctx.createGain();
+      var st = t + i * 0.19;
+      g.gain.setValueAtTime(0.0001, st);
+      g.gain.exponentialRampToValueAtTime(0.07, st + 0.012);
+      g.gain.exponentialRampToValueAtTime(0.0001, st + 0.13);
+      o.connect(g); g.connect(this.master);
+      o.start(st); o.stop(st + 0.15);
+    }
+    var src = ctx.createBufferSource();
+    src.buffer = this.noiseBuf;
+    src.playbackRate.value = 0.6;
+    var lp = ctx.createBiquadFilter();
+    lp.type = "lowpass"; lp.frequency.value = 260;
+    var ng = ctx.createGain();
+    ng.gain.setValueAtTime(0.0001, t);
+    ng.gain.exponentialRampToValueAtTime(0.05, t + 0.02);
+    ng.gain.exponentialRampToValueAtTime(0.0001, t + 0.36);
+    src.connect(lp); lp.connect(ng); ng.connect(this.master);
+    src.start(t); src.stop(t + 0.4);
+  },
+
   breath: function () {    if (!this.ctx) return;
     var ctx = this.ctx, t = ctx.currentTime;
     var s = ctx.createBufferSource();

@@ -23,6 +23,9 @@ var Game = {
   lightOn: true,
   battery: 3,
   batteryTaken: {},
+  buzzT: 10,
+  buzzFlash: 0,
+  buzzHinted: false,
   lightFlicker: false,
   flickerT: 0,
   flashRed: 0,
@@ -141,6 +144,9 @@ var Game = {
     this.slow.reset();
     this.battery = 3;
     this.batteryTaken = {};
+    this.buzzT = 10;
+    this.buzzFlash = 0;
+    this.buzzHinted = false;
 
     this.floor = 0;
     World.build(0);
@@ -268,6 +274,27 @@ var Game = {
     this.live.update(dt, this);
     this.radioUpdate(dt);
     if (this.live.on) this.liveOnTime += dt;
+
+    // 人气太高：手机不停震动，每次震动都是一次噪音 —— 直接把鬼引过来
+    this.buzzFlash = Math.max(0, this.buzzFlash - dt);
+    if (this.live.on && this.live.silenceT <= 0 && this.live.heat > 32) {
+      this.buzzT -= dt;
+      if (this.buzzT <= 0) {
+        this.buzzT = Math.max(2.8, 11 - this.live.heat * 0.08);
+        this.buzzFlash = 2.2;
+        AudioSys.buzz();
+        this.emitNoise(this.player.x, this.player.y, CFG.NOISE_ACT * 1.4, true);
+        this.shake = Math.min(1, this.shake + 0.12);
+        if (!this.buzzHinted) {
+          this.buzzHinted = true;
+          this.toast("手机在震", "人气太高，弹幕提示音会把鬼引过来 —— 按 L 关播", 3800);
+        }
+      }
+    }
+    if (this.buzzFlash > 0 && this.live.on && this.live.silenceT <= 0) {
+      var st = document.getElementById("statusText");
+      if (st) st.textContent = "手机在震（人气过高）";
+    }
 
     // 队友失联
     if (this.radioLostPending > 0) {
@@ -551,6 +578,13 @@ var Game = {
 
   pushBarricade: function (p) {
     if (p.state !== "ready") return;
+    // 你正站在要堵的那一列里：先把自己挪开
+    var T = CFG.TILE;
+    if (Math.floor(this.player.x / T) === p.x && this.player.y / T >= 16.5 && this.player.y / T <= 21.5) {
+      var f = World.nearestFree(this.player.x + T, this.player.y, this.player.r);
+      this.player.x = f.x; this.player.y = f.y;
+      this.toast("", "你把桌椅推过去，自己退开了一步", 1800);
+    }
     p.state = "blocking";
     this.doorStates[p.barId] = "blocking";
     World.refreshDoors();
@@ -845,18 +879,23 @@ var Game = {
     this.shake = 1.4;
     Renderer.shake = 1.4;
     AudioSys.stinger("dead");
-    if (this.live.on) this.live.viewers += 120 + this.live.heat * 3;
+
+    var peak = Math.floor(Math.max(90, this.live.viewers + 120 + this.live.heat * 3));
+    if (this.live.on) this.live.viewers = peak;
     this.live.event("death");
     this.emitNoise(this.player.x, this.player.y, 400, true);
 
     var dv = document.getElementById("deadViewers");
-    if (dv) dv.textContent = Math.floor(this.live.viewers).toLocaleString("en-US");
+    if (dv) dv.textContent = peak.toLocaleString("en-US");
 
     var chatBox = document.getElementById("deadChat");
     if (chatBox) {
       var lines = STORY.deadChat.slice().sort(function () { return Math.random() - 0.5; }).slice(0, 5);
       chatBox.innerHTML = lines.map(function (l) { return "<div>" + l + "</div>"; }).join("");
     }
+
+    // 惩罚 A：平台限流（弹幕消失 90 秒、热度清零、人数砍半）
+    this.live.punish();
 
     var self = this;
     setTimeout(function () {
