@@ -2,7 +2,7 @@
 "use strict";
 
 /* 版本号：每次改完同步改这里 + index.html 里的 ?v= */
-var GAME_VERSION = "v5.5 · 20251121e";
+var GAME_VERSION = "v5.6 · 20251121f";
 
 var CFG = {
   TILE: 32,

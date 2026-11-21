@@ -1,4 +1,4 @@
-﻿/* ================= 游戏主控 v2 ================= */
+/* ================= 游戏主控 v2 ================= */
 "use strict";
 
 var Game = {
@@ -610,6 +610,7 @@ var Game = {
     this.toast("", LEVELS[target].name, 2200);
 
     if (this.slow.active) this.slow.followFloor(target);
+    if (target === 0) this.radioPlay("f1");
     if (target === 1) this.radioPlay("f2");
     if (target === 2) { this.radioPlay("f3"); this.onEnterThirdFloor(); }
   },
