@@ -147,14 +147,61 @@ var AudioSys = {
     this.musicT = 3.0;
   },
 
-  /* 十六分格的旋律（D 小调，音乐盒音色）：[步, 频率, 时长, 音量] */
-  MUSIC_PATTERN: [
-    [0, 440.00, 1.9, 0.085], [2, 349.23, 1.5, 0.062], [3, 329.63, 1.2, 0.050],
-    [5, 293.66, 1.9, 0.075], [7, 220.00, 2.4, 0.060],
-    [8, 523.25, 1.7, 0.070], [10, 466.16, 1.5, 0.058], [11, 440.00, 1.3, 0.050],
-    [13, 349.23, 1.7, 0.062], [15, 329.63, 2.1, 0.055]
+  /* 四个阶段：0 微恐 → 1 加低音弦 → 2 加敲击 → 3 急促追逐
+     每层都是 16 格循环；bell = 音乐盒，bass = 低音，pad = 长音弦，knock = 木质敲击 */
+  MUSIC_STAGES: [
+    {
+      step: 0.62, name: "微恐",
+      bell: [[0, 440.00, 2.2, 0.082], [3, 349.23, 1.6, 0.052], [7, 293.66, 2.0, 0.070],
+             [11, 329.63, 1.8, 0.048], [14, 220.00, 2.6, 0.058]],
+      bass: [[0, 73.42], [8, 82.41]],
+      pad: [],
+      knock: []
+    },
+    {
+      step: 0.56, name: "低音弦进来",
+      bell: [[0, 440.00, 2.0, 0.082], [2, 523.25, 1.6, 0.048], [3, 349.23, 1.6, 0.056],
+             [6, 293.66, 1.8, 0.060], [8, 392.00, 1.8, 0.058], [11, 329.63, 1.6, 0.048],
+             [13, 293.66, 1.9, 0.052]],
+      bass: [[0, 73.42], [4, 73.42], [8, 98.00], [12, 87.31]],
+      pad: [[0, 110.00], [8, 98.00]],
+      knock: []
+    },
+    {
+      step: 0.50, name: "敲击进来",
+      bell: [[0, 440.00, 1.8, 0.078], [2, 466.16, 1.4, 0.048], [3, 349.23, 1.4, 0.054],
+             [5, 392.00, 1.4, 0.050], [6, 293.66, 1.6, 0.058], [8, 523.25, 1.6, 0.058],
+             [10, 466.16, 1.4, 0.046], [11, 440.00, 1.4, 0.050], [13, 349.23, 1.5, 0.046],
+             [14, 329.63, 1.7, 0.050]],
+      bass: [[0, 73.42], [3, 73.42], [6, 82.41], [8, 98.00], [11, 98.00], [14, 87.31]],
+      pad: [[0, 110.00], [6, 110.00], [8, 98.00]],
+      knock: [0, 3, 6, 8, 11, 14]
+    },
+    {
+      step: 0.31, name: "它在追",
+      bell: [[0, 587.33, 0.9, 0.070], [1, 440.00, 0.7, 0.044], [2, 523.25, 0.8, 0.052],
+             [3, 466.16, 0.7, 0.042], [4, 440.00, 0.8, 0.050], [5, 392.00, 0.7, 0.040],
+             [6, 349.23, 0.8, 0.048], [7, 329.63, 0.7, 0.040], [8, 587.33, 0.9, 0.070],
+             [9, 440.00, 0.7, 0.044], [10, 523.25, 0.8, 0.052], [11, 466.16, 0.7, 0.042],
+             [12, 493.88, 0.8, 0.050], [13, 392.00, 0.7, 0.040], [14, 349.23, 0.8, 0.048],
+             [15, 311.13, 0.7, 0.042]],
+      bass: [[0, 73.42], [2, 73.42], [4, 82.41], [6, 73.42], [8, 98.00], [10, 98.00],
+             [12, 87.31], [14, 73.42]],
+      pad: [[0, 110.00], [8, 110.00]],
+      knock: [0, 2, 4, 6, 8, 10, 12, 14]
+    }
   ],
-  MUSIC_BASS: [[0, 73.42], [6, 82.41], [8, 110.00], [14, 98.00]],
+
+  /* 当前阶段（0-3），由 Game 根据线索数 / 是否被追设置 */
+  musicStageIdx: 0,
+
+  setMusicStage: function (i) {
+    i = Math.max(0, Math.min(this.MUSIC_STAGES.length - 1, i | 0));
+    if (i === this.musicStageIdx) return;
+    this.musicStageIdx = i;
+    this.musicStep = 0;
+    this.musicStepT = 0.05;
+  },
 
   /* 音乐盒：一个基音 + 一个微弱的八度泛音，快起慢落 */
   musicBell: function (freq, dur, vol, bright) {
@@ -194,27 +241,79 @@ var AudioSys = {
     o.start(t); o.stop(t + 3.3);
   },
 
+  /* 长音弦：两个微失谐的正弦 + 低通，慢起慢落 */
+  musicPad: function (freq, dur) {
+    var ctx = this.ctx, t = ctx.currentTime;
+    var out = this.musicOut;
+    if (!out) return;
+    var lp = ctx.createBiquadFilter();
+    lp.type = "lowpass"; lp.frequency.value = 620; lp.Q.value = 0.6;
+    var g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(0.055, t + 0.9);
+    g.gain.linearRampToValueAtTime(0.0001, t + dur);
+    for (var i = 0; i < 3; i++) {
+      var o = ctx.createOscillator();
+      o.type = "sawtooth";
+      o.frequency.value = freq * (1 + (i - 1) * 0.004);
+      o.connect(lp);
+      o.start(t); o.stop(t + dur + 0.05);
+    }
+    lp.connect(g); g.connect(out);
+  },
+
+  /* 木质敲击：一小段带通噪声 + 低频撞击 */
+  musicKnock: function () {
+    var ctx = this.ctx, t = ctx.currentTime;
+    var out = this.musicOut;
+    if (!out || !this.noiseBuf) return;
+    var src = ctx.createBufferSource();
+    src.buffer = this.noiseBuf;
+    var bp = ctx.createBiquadFilter();
+    bp.type = "bandpass"; bp.frequency.value = 900; bp.Q.value = 3.2;
+    var g = ctx.createGain();
+    g.gain.setValueAtTime(0.16, t);
+    g.gain.exponentialRampToValueAtTime(0.0008, t + 0.11);
+    src.connect(bp); bp.connect(g); g.connect(out);
+    src.start(t); src.stop(t + 0.14);
+    var o = ctx.createOscillator();
+    o.type = "sine"; o.frequency.value = 128;
+    var g2 = ctx.createGain();
+    g2.gain.setValueAtTime(0.1, t);
+    g2.gain.exponentialRampToValueAtTime(0.0008, t + 0.16);
+    o.connect(g2); g2.connect(out);
+    o.start(t); o.stop(t + 0.18);
+  },
+
   /* 一个音符格 = 0.44 秒；循环 16 格 */
   musicTick: function (dt, intensity) {
     if (!this.ctx || !this.musicStarted) return;
     intensity = intensity || 0;
+    var st = this.MUSIC_STAGES[this.musicStageIdx] || this.MUSIC_STAGES[0];
     if (this.musicStepT === undefined) this.musicStepT = 0.6;
     this.musicStepT -= dt;
     if (this.musicStepT > 0) return;
-    this.musicStepT = 0.46 - intensity * 0.07;
+    // 越危险越快，但保留每个阶段自己的基准速度
+    this.musicStepT = Math.max(st.step * 0.62, st.step - intensity * 0.06);
 
     var step = this.musicStep || 0;
     var bump = 1 + intensity * 0.45;
+    var i, n;
 
-    for (var i = 0; i < this.MUSIC_PATTERN.length; i++) {
-      var n = this.MUSIC_PATTERN[i];
+    for (i = 0; i < st.bell.length; i++) {
+      n = st.bell[i];
       if (n[0] !== step) continue;
-      if (Math.random() < 0.08) break;              // 偶尔漏一拍，像发条卡住
-      this.musicBell(n[1], n[2], n[3] * bump, false);
+      if (Math.random() < (this.musicStageIdx >= 3 ? 0.03 : 0.08)) break;   // 偶尔漏一拍
+      this.musicBell(n[1], n[2], n[3] * bump, this.musicStageIdx >= 3);
     }
-    for (var j = 0; j < this.MUSIC_BASS.length; j++) {
-      var b = this.MUSIC_BASS[j];
-      if (b[0] === step) this.musicBass(b[1]);
+    for (i = 0; i < st.bass.length; i++) {
+      if (st.bass[i][0] === step) this.musicBass(st.bass[i][1]);
+    }
+    for (i = 0; i < st.pad.length; i++) {
+      if (st.pad[i][0] === step) this.musicPad(st.pad[i][1], st.step * 8);
+    }
+    for (i = 0; i < st.knock.length; i++) {
+      if (st.knock[i] === step) this.musicKnock();
     }
 
     this.musicStep = (step + 1) % 16;

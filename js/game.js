@@ -267,26 +267,34 @@ var Game = {
 
   /* ================= 主循环 ================= */
   loop: function (ts) {
+    // 先把下一帧排上：这样即使本帧抛错，游戏也不会“卡死”
+    var self = this;
+    requestAnimationFrame(function (t) { self.loop(t); });
+
     var dt = (ts - this.last) / 1000;
     this.last = ts;
     if (dt > 0.06) dt = 0.06;
     if (dt < 0) dt = 0;
     this.dt = dt;
 
-    if (this.state === "play" || this.state === "title") this.time += dt;
+    try {
+      if (this.state === "play" || this.state === "title") this.time += dt;
 
-    if (this.state === "play") this.update(dt);
-    else if (this.state === "title") this.updateIdle(dt);
-    else if (this.state === "paused") {
-      // 暂停时逻辑停住，但背景音乐继续（暂停不该是一屋子死寂）
-      AudioSys.musicTick(dt, 0);
+      if (this.state === "play") this.update(dt);
+      else if (this.state === "title") this.updateIdle(dt);
+      else if (this.state === "paused") {
+        // 暂停时逻辑停住，但背景音乐继续（暂停不该是一屋子死寂）
+        AudioSys.musicTick(dt, 0);
+      }
+
+      if (this.inGame) { Renderer.draw(this); Renderer.drawMinimap(this); }
+      else this.drawTitleBg();
+    } catch (err) {
+      this.frameErrors = (this.frameErrors || 0) + 1;
+      if (this.frameErrors <= 3 && window.console) console.error("[frame]", err);
+      // 出错时至少把状态拉回能继续跑的样子
+      if (this.state === "play" && this.frameErrors > 20) this.state = "paused";
     }
-
-    if (this.inGame) { Renderer.draw(this); Renderer.drawMinimap(this); }
-    else this.drawTitleBg();
-
-    var self = this;
-    requestAnimationFrame(function (t) { self.loop(t); });
   },
 
   drawTitleBg: function () {
@@ -337,18 +345,17 @@ var Game = {
         AudioSys.buzz();
         this.emitNoise(this.player.x, this.player.y, CFG.NOISE_ACT * 1.4, true);
         this.shake = Math.min(1, this.shake + 0.12);
+        // 不出文字：屏幕抖一下 + 手机真震一下（支持震动才震）
+        this.vibrate(this.buzzHinted ? [18] : [30, 55, 30]);
         if (!this.buzzHinted) {
           this.buzzHinted = true;
-          if (this.ghost.active && this.ghostWakeT > 3) {
-            this.toast("手机在震", "人气太高，弹幕提示音会把鬼引过来 —— 按 L 关播", 3800);
-          }
+          this.shake = Math.min(1.3, this.shake + 0.45);
         }
       }
     }
-    if (this.buzzFlash > 0 && this.live.on && this.live.silenceT <= 0) {
-      var st = document.getElementById("statusText");
-      if (st) st.textContent = "手机在震（人气过高）";
-    }
+    // LIVE 角标自己抖，不用文字解释
+    var lb = document.getElementById("liveBadge");
+    if (lb) lb.classList.toggle("buzzing", this.buzzFlash > 0 && this.live.on && this.live.silenceT <= 0);
 
     // 队友失联
     if (this.radioLostPending > 0) {
@@ -419,8 +426,11 @@ var Game = {
       }
     }
 
-    // 背景音乐：鬼越近越压抑
+    // 背景音乐：线索越多乐器越多；被追 / 鬼在身边时切到急促版
     var musI = nearestGhost < 620 ? Math.max(0, 1 - nearestGhost / 620) : 0;
+    var clueStage = Math.min(3, Math.floor(this.clueCount / 2));
+    var chased = this.ghost.active && (this.ghost.state === "chase" || nearestGhost < 300);
+    AudioSys.setMusicStage(chased ? 3 : clueStage);
     AudioSys.musicTick(dt, musI);
     AudioSys.musicLevel(musI);
 
@@ -516,6 +526,11 @@ var Game = {
   updateFloorUi: function () {
     var el = document.getElementById("floorLabel");
     if (el) el.textContent = LEVELS[this.floor].floorLabel;
+  },
+
+  /* 真机震动：不支持就静默跳过 */
+  vibrate: function (pattern) {
+    try { if (navigator.vibrate) navigator.vibrate(pattern); } catch (e) { /* 忽略 */ }
   },
 
   /* ================= 楼梯 ================= */

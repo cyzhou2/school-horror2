@@ -531,3 +531,17 @@ h1 {
   .diff-btn { max-width: 92px; font-size: 11px; padding: 8px 4px 7px; }
   .diff-btn .eye { width: 21px; height: 12px; }
 }
+
+
+/* ===== 手机震动：LIVE 角标自己抖 ===== */
+@keyframes hudBuzz {
+  0%,100% { transform: translate(0,0) rotate(0deg); }
+  20% { transform: translate(-2px,1px) rotate(-1.2deg); }
+  40% { transform: translate(2px,-1px) rotate(1.2deg); }
+  60% { transform: translate(-1.5px,-1.5px) rotate(-.8deg); }
+  80% { transform: translate(1.5px,1.5px) rotate(.8deg); }
+}
+.live-badge.buzzing {
+  animation: hudBuzz .14s linear 6;
+  box-shadow: 0 0 18px rgba(210,40,55,.75);
+}

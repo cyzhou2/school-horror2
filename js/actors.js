@@ -607,7 +607,7 @@ var SlowGhost = {
       var bd = Math.hypot(blocker.px - this.x, blocker.py - this.y);
       if (bd > 46) {
         // 门把路堵死了，寻路必然为空：直接朝门走
-        this.walkStraight(blocker.px, blocker.py, dt);
+        this.walkStraight(blocker.px, blocker.py, dt, g);
         this.state = "walk";
       } else {
         this.state = "break";
@@ -697,7 +697,7 @@ var SlowGhost = {
     if (!node) return;
     var dx = node.x - this.x, dy = node.y - this.y;
     var d = Math.sqrt(dx * dx + dy * dy);
-    var sp = CFG.SLOW_SPEED * ((g.diffCfg && g.diffCfg.speed) || 1) * dt;
+    var sp = CFG.SLOW_SPEED * ((g && g.diffCfg && g.diffCfg.speed) || 1) * dt;
     if (d < sp) {
       this.stepTo(node.x, node.y);
       this.pathI++;
@@ -707,11 +707,12 @@ var SlowGhost = {
     }
   },
 
-  walkStraight: function (tx, ty, dt) {
+  walkStraight: function (tx, ty, dt, g) {
     var dx = tx - this.x, dy = ty - this.y;
     var d = Math.sqrt(dx * dx + dy * dy);
     if (d < 1) return;
-    var sp = CFG.SLOW_SPEED * ((g.diffCfg && g.diffCfg.speed) || 1) * dt;
+    var fs2 = (g && g.diffCfg && g.diffCfg.speed) || 1;
+    var sp = CFG.SLOW_SPEED * fs2 * dt;
     this.stepTo(this.x + dx / d * sp, this.y + dy / d * sp);
   },
 
