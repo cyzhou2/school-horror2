@@ -1,4 +1,4 @@
-/* ================= 游戏主控 v2 ================= */
+﻿/* ================= 游戏主控 v2 ================= */
 "use strict";
 
 var Game = {
@@ -124,7 +124,7 @@ var Game = {
     d.className = "overlay dark hidden";
     d.id = "pauseScreen";
     d.innerHTML = '<div class="title-wrap"><div class="ending-label">暂停</div>' +
-      '<p class="choice-body">直播还在继续，观众在等你回来。<br><br>按 ESC 继续。</p>' +
+      '<p class="choice-body">直播还在继续，观众在等你回来。<br><br>按 ESC 或 P 继续。</p>' +
       '<div class="build-tag">' + (typeof GAME_VERSION !== "undefined" ? GAME_VERSION : "") + '</div></div>';
     document.getElementById("app").appendChild(d);
     this.pauseEl = d;
@@ -257,6 +257,10 @@ var Game = {
 
     if (this.state === "play") this.update(dt);
     else if (this.state === "title") this.updateIdle(dt);
+    else if (this.state === "paused") {
+      // 暂停时逻辑停住，但背景音乐继续（暂停不该是一屋子死寂）
+      AudioSys.musicTick(dt, 0);
+    }
 
     if (this.inGame) { Renderer.draw(this); Renderer.drawMinimap(this); }
     else this.drawTitleBg();
@@ -1236,11 +1240,22 @@ var Game = {
     var pt = null;
 
     if (oppositeStair) {
-      pt = oppositeStair === "south" ? { x: 56, y: 11.5 } : { x: 6, y: 38.5 };
-      var wx = pt.x * T, wy = pt.y * T;
-      var dd = Math.sqrt((wx - p.x) * (wx - p.x) + (wy - p.y) * (wy - p.y)) / T;
-      // 极端情况下（对面楼梯刚好能看见你）才退回随机远点
-      if (dd < minTiles || World.los(p.x, p.y, wx, wy)) pt = null;
+      // 硬规则：南边上楼 → 北楼梯间；北边上楼 → 南楼梯间。
+      // 但具体落点是“那个楼梯间里随机一格”，不是固定坐标，避免每次都同一像素。
+      var area = oppositeStair === "south"
+        ? { x0: 50, y0: 8, x1: 59, y1: 13 }   // 北楼梯间的下半段（梯段在 y3..5）
+        : { x0: 4, y0: 36, x1: 13, y1: 41 };  // 南楼梯间的上半段（梯段在 y43..45）
+      for (var att = 0; att < 40; att++) {
+        var rx = area.x0 + Math.floor(Math.random() * (area.x1 - area.x0 + 1));
+        var ry = area.y0 + Math.floor(Math.random() * (area.y1 - area.y0 + 1));
+        if (!World.inBounds(rx, ry) || World.blocked(rx, ry)) continue;
+        var cx2 = (rx + 0.5) * T, cy2 = (ry + 0.5) * T;
+        var d2 = Math.sqrt((cx2 - p.x) * (cx2 - p.x) + (cy2 - p.y) * (cy2 - p.y)) / T;
+        if (d2 < minTiles) continue;
+        if (World.los(p.x, p.y, cx2, cy2)) continue;
+        pt = { x: rx + 0.5, y: ry + 0.5 };
+        break;
+      }
     }
     if (!pt) pt = this.placeGhostAway(minTiles);
 

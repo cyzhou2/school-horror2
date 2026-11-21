@@ -50,7 +50,7 @@ var Input = {
       if (k === "l") self.liveQueued = true;
       if (k === "m") { var m = AudioSys.toggleMute(); Game.toast(m ? "已静音" : "已恢复声音", ""); }
       if (k === "shift") self.runKey = true;
-      if (k === "escape" && Game.inGame) Game.togglePause();
+      if ((k === "escape" || k === "p") && Game.inGame && Game.state !== "ending") Game.togglePause();
       // 手动按方向键 = 取消点击寻路
       if (["w", "a", "s", "d", "arrowup", "arrowdown", "arrowleft", "arrowright"].indexOf(k) >= 0) {
         if (Game.cancelAutoMove) Game.cancelAutoMove();
