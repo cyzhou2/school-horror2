@@ -10,13 +10,10 @@ var Input = {
   touchMode: false,
   actionQueued: false,
   liveQueued: false,
-  pointers: { stick: null },
   dom: {},
 
   init: function () {
     var self = this;
-    this.dom.stick = document.getElementById("stick");
-    this.dom.knob = document.getElementById("knob");
     this.dom.touch = document.getElementById("touch");
     this.dom.btnRun = document.getElementById("btnRun");
     this.dom.btnAct = document.getElementById("btnAct");
@@ -91,37 +88,6 @@ var Input = {
     };
     window.addEventListener("touchstart", enableTouch, { once: true, passive: true });
 
-    if (this.dom.stick) {
-      var stickEl = this.dom.stick;
-      var onDown = function (e) {
-        enableTouch();
-        e.preventDefault();
-        var p = e.changedTouches ? e.changedTouches[0] : e;
-        self.pointers.stick = p.identifier !== undefined ? p.identifier : "mouse";
-        self.updateStick(p);
-        try {
-          if (stickEl.setPointerCapture && e.pointerId !== undefined) stickEl.setPointerCapture(e.pointerId);
-        } catch (err) { /* 某些浏览器对合成指针会抛错 */ }
-      };
-      var onMove = function (e) {
-        if (self.pointers.stick === null) return;
-        e.preventDefault();
-        var p = e.changedTouches ? e.changedTouches[0] : e;
-        var id = p.identifier !== undefined ? p.identifier : "mouse";
-        if (id !== self.pointers.stick) return;
-        self.updateStick(p);
-      };
-      var onUp = function (e) {
-        self.pointers.stick = null;
-        self.axisX = self.axisY = 0;
-        self.dom.knob.style.transform = "translate(0,0)";
-      };
-      stickEl.addEventListener("pointerdown", onDown);
-      window.addEventListener("pointermove", onMove, { passive: false });
-      window.addEventListener("pointerup", onUp);
-      window.addEventListener("pointercancel", onUp);
-    }
-
     var bindPress = function (el, onDownFn, onUpFn) {
       if (!el) return;
       el.addEventListener("pointerdown", function (e) {
@@ -137,6 +103,24 @@ var Input = {
       el.addEventListener("pointercancel", up);
       el.addEventListener("pointerleave", up);
     };
+
+    var muteBtn = document.getElementById("btnMute");
+    if (muteBtn) {
+      var syncMute = function () {
+        var m = AudioSys.muted;
+        muteBtn.classList.toggle("muted", m);
+        muteBtn.textContent = m ? "✕" : "♪";
+      };
+      muteBtn.addEventListener("click", function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        AudioSys.resume();
+        AudioSys.toggleMute();
+        syncMute();
+      });
+      this.syncMute = syncMute;
+      syncMute();
+    }
 
     bindPress(this.dom.btnAct, function () { self.actionQueued = true; }, null);
     // 手机上跑步是“开关”（相当于大小写锁定）：点一下切换，不随松手复位
@@ -156,24 +140,6 @@ var Input = {
     }
     bindPress(this.dom.btnLive, function () { self.liveQueued = true; }, null);
     this.syncRunUi();
-  },
-
-  updateStick: function (p) {
-    var el = this.dom.stick;
-    var r = el.getBoundingClientRect();
-    var cx = r.left + r.width / 2, cy = r.top + r.height / 2;
-    var dx = p.clientX - cx, dy = p.clientY - cy;
-    var max = r.width * 0.36;
-    var dist = Math.sqrt(dx * dx + dy * dy);
-    var k = dist > max ? max / dist : 1;
-    var kx = dx * k, ky = dy * k;
-    this.dom.knob.style.transform = "translate(" + kx.toFixed(1) + "px," + ky.toFixed(1) + "px)";
-    var nx = dx / max, ny = dy / max;
-    if (Math.sqrt(nx * nx + ny * ny) > 0.3 && Game.cancelAutoMove) Game.cancelAutoMove();
-    var len = Math.sqrt(nx * nx + ny * ny);
-    if (len > 1) { nx /= len; ny /= len; }
-    if (len < 0.18) { nx = 0; ny = 0; }
-    this.axisX = nx; this.axisY = ny;
   },
 
   /* 归一化移动向量 */
@@ -236,6 +202,5 @@ var Input = {
     this.actionQueued = false;
     this.liveQueued = false;
     this.axisX = this.axisY = 0;
-    this.pointers.stick = null;
   }
 };

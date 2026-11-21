@@ -241,22 +241,6 @@ body.touch #minimap { bottom: 170px; right: 12px; width: 124px; height: 93px; }
 
 /* ================= 触屏 ================= */
 #touch { position: absolute; inset: 0; z-index: 7; pointer-events: none; }
-#stick {
-  position: absolute; left: 22px; bottom: max(22px, env(safe-area-inset-bottom));
-  width: 116px; height: 116px; border-radius: 50%;
-  border: 1px solid rgba(200,190,170,.22);
-  background: rgba(20,18,16,.32);
-  pointer-events: auto;
-  touch-action: none;
-}
-#knob {
-  position: absolute; left: 50%; top: 50%;
-  width: 52px; height: 52px; border-radius: 50%;
-  margin: -26px 0 0 -26px;
-  background: rgba(200,190,170,.24);
-  border: 1px solid rgba(200,190,170,.35);
-  transition: transform .05s linear;
-}
 #touchBtns {
   position: absolute; right: 18px; bottom: max(22px, env(safe-area-inset-bottom));
   display: flex; flex-direction: column; align-items: flex-end; gap: 10px;
@@ -476,7 +460,6 @@ h1 {
   #danmaku { padding-right: 120px; }
   /* 触屏按钮再大一圈 */
   .tbtn { min-width: 62px; min-height: 62px; font-size: 13px; }
-  #stick { width: 118px; height: 118px; }
 }
 
 
@@ -544,4 +527,32 @@ h1 {
 .live-badge.buzzing {
   animation: hudBuzz .14s linear 6;
   box-shadow: 0 0 18px rgba(210,40,55,.75);
+}
+
+
+/* ===== 静音按钮（左下角） ===== */
+.corner-btn {
+  position: absolute;
+  left: 16px;
+  bottom: max(16px, env(safe-area-inset-bottom));
+  z-index: 9;
+  width: 38px; height: 38px;
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--mono); font-size: 16px; line-height: 1;
+  color: rgba(210,200,180,.62);
+  background: rgba(18,16,14,.62);
+  border: 1px solid rgba(150,140,120,.26);
+  border-radius: 50%;
+  cursor: pointer;
+  transition: color .15s, border-color .15s, background .15s;
+  -webkit-tap-highlight-color: transparent;
+}
+.corner-btn:hover { color: #e8dfcd; border-color: rgba(200,60,74,.5); }
+.corner-btn.muted {
+  color: #c8485a;
+  border-color: rgba(200,60,74,.45);
+  background: rgba(60,16,20,.5);
+}
+@media (max-aspect-ratio: 1/1) {
+  .corner-btn { width: 34px; height: 34px; font-size: 14px; left: 12px; bottom: max(12px, env(safe-area-inset-bottom)); }
 }

@@ -164,6 +164,7 @@ var Game = {
     this.hideAllOverlays();
     this.clues = {};
     this.clueOrder = {};
+    this.trail = [];
     this.clueCount = 0;
     this.keys = {};
     this.doorStates = {};
@@ -329,6 +330,7 @@ var Game = {
     }
     if (!Input.keys["f"]) this.fKeyLock = false;
 
+    this.pushTrail();
     g.update(dt, this);
     this.slow.update(dt, this);
     this.live.update(dt, this);
@@ -639,6 +641,7 @@ var Game = {
     if (this.ghost.active) this.resetGhostPosition(18, stairId);
     // 上楼就是甩脱：给你一段“它找不到你”的缓冲
     this.graceT = 3.0;
+    this.trail = [];
 
     this.cam.x = this.clampCamX(px - CFG.VIEW_W / 2);
     this.cam.y = this.clampCamY(py - CFG.VIEW_H / 2);
@@ -653,6 +656,36 @@ var Game = {
     if (target === 0) this.radioPlay("f1");
     if (target === 1) this.radioPlay("f2");
     if (target === 2) { this.radioPlay("f3"); this.onEnterThirdFloor(); }
+  },
+
+  /* ================= 影子轨迹 ================= */
+  /* 每帧记一点位置，最多留 8 秒；Ghost 追的是 this.lagPos(sec) */
+  pushTrail: function () {
+    this.trail = this.trail || [];
+    var now = this.time;
+    var last = this.trail[this.trail.length - 1];
+    // 30Hz 足够，站定时不重复记
+    if (last && now - last.t < 1 / 30) return;
+    if (last && Math.abs(last.x - this.player.x) < 0.4 && Math.abs(last.y - this.player.y) < 0.4) return;
+    this.trail.push({ x: this.player.x, y: this.player.y, t: now });
+    while (this.trail.length && now - this.trail[0].t > 8) this.trail.shift();
+  },
+
+  /* sec 秒前你在哪 —— 鬼的“影子目标” */
+  lagPos: function (sec) {
+    var tr = this.trail;
+    if (!tr || !tr.length || sec <= 0) return { x: this.player.x, y: this.player.y };
+    var target = this.time - sec;
+    if (target <= tr[0].t) return { x: tr[0].x, y: tr[0].y };
+    for (var i = tr.length - 1; i > 0; i--) {
+      var a = tr[i - 1], b = tr[i];
+      if (a.t <= target && b.t >= target) {
+        var k = (target - a.t) / Math.max(0.0001, b.t - a.t);
+        return { x: a.x + (b.x - a.x) * k, y: a.y + (b.y - a.y) * k };
+      }
+    }
+    var l = tr[tr.length - 1];
+    return { x: l.x, y: l.y };
   },
 
   /* ================= 钥匙与线索 ================= */

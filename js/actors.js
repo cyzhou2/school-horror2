@@ -269,11 +269,12 @@ var Ghost = {
         break;
     }
 
-    // 追逐时持续重算路径
+    // 追逐时持续重算路径 —— 目标是"影子"：你若干秒前站的地方
     if (this.state === "chase") {
       this.repathT -= dt;
       if (!this.path.length || this.repathT <= 0) {
-        this.path = World.findPath(this.x, this.y, p.x, p.y);
+        var lt = g.lagPos ? g.lagPos(CFG.GHOST_LAG_FAST) : { x: p.x, y: p.y };
+        this.path = World.findPath(this.x, this.y, lt.x, lt.y);
         this.pathI = 0;
         this.repathT = 0.32;
       }
@@ -293,7 +294,7 @@ var Ghost = {
     var blk = this.barrierProp;
     if (!blk) {
       var aim = null;
-      if (this.state === "chase") aim = { x: p.x, y: p.y };
+      if (this.state === "chase") aim = (g.lagPos ? g.lagPos(CFG.GHOST_LAG_FAST) : p);
       else if (!this.path.length) aim = this.waypoint || this.target;
       if (aim) blk = World.blockerBetween(this.x, this.y, aim.x, aim.y);
     }
@@ -598,8 +599,9 @@ var SlowGhost = {
     if (this.freezeT > 0) { this.freezeT -= dt; return; }
 
     var hidden = p.hidden && p.hidingProp;
-    var tx = hidden ? p.hidingProp.px : p.x;
-    var ty = hidden ? p.hidingProp.py : p.y;
+    var lt2 = (!hidden && g.lagPos) ? g.lagPos(CFG.GHOST_LAG_SLOW) : null;
+    var tx = hidden ? p.hidingProp.px : (lt2 ? lt2.x : p.x);
+    var ty = hidden ? p.hidingProp.py : (lt2 ? lt2.y : p.y);
 
     // 先处理挡路的门
     var blocker = World.blockerBetween(this.x, this.y, tx, ty);

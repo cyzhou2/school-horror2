@@ -2,7 +2,7 @@
 "use strict";
 
 /* 版本号：每次改完同步改这里 + index.html 里的 ?v= */
-var GAME_VERSION = "v5.9 · 20251121i";
+var GAME_VERSION = "v6.0 · 20251121j";
 
 /* 难度：只改鬼的移速与感知范围；简单里没有慢鬼 */
 var DIFFS = {
@@ -39,14 +39,17 @@ var CFG = {
   VIEWER_K: 2200,        // 粉丝常数：到这个量级，速度已经接近上限的一半多
   OFFSTREAM_TAU: 40,     // 关播后粉丝按 e^(-t/τ) 衰减
   GHOST_SIGHT: 250,
+  /* 影子追击：两只鬼追的都是你「若干秒前」的位置，两个值可以不同 */
+  GHOST_LAG_FAST: 2.0,
+  GHOST_LAG_SLOW: 2.0,
   GHOST_HEAR: 120,
   GHOST_CATCH: 24,
   GHOST_LEASH: 470,      // 拉这么远就脱战
 
   /* 慢鬼：永不冲刺，只走最短路 */
-  SLOW_SPEED: 76,
+  SLOW_SPEED: 62,     // 削弱：原来 76
   SLOW_HIDE_COUNT: 6.0,     // 在柜门外数到 6 就开门
-  SLOW_CATCH: 26,
+  SLOW_CATCH: 24,
 
   /* 门与障碍 */
   FIREDOOR_BREAK: 8.0,      // 它撞开一扇防火门要几秒
