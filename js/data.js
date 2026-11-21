@@ -2,7 +2,7 @@
 "use strict";
 
 /* 版本号：每次改完同步改这里 + index.html 里的 ?v= */
-var GAME_VERSION = "v6.0 · 20251121j";
+var GAME_VERSION = "v6.1 · 20251121k";
 
 /* 难度：只改鬼的移速与感知范围；简单里没有慢鬼 */
 var DIFFS = {
@@ -47,9 +47,9 @@ var CFG = {
   GHOST_LEASH: 470,      // 拉这么远就脱战
 
   /* 慢鬼：永不冲刺，只走最短路 */
-  SLOW_SPEED: 62,     // 削弱：原来 76
+  SLOW_SPEED: 76,
   SLOW_HIDE_COUNT: 6.0,     // 在柜门外数到 6 就开门
-  SLOW_CATCH: 24,
+  SLOW_CATCH: 26,
 
   /* 门与障碍 */
   FIREDOOR_BREAK: 8.0,      // 它撞开一扇防火门要几秒
@@ -383,14 +383,14 @@ var LEVELS = [
 var KEYS = {
   key1: { name: "保安室钥匙串", short: "钥匙串", room: "保安室", floor: 0, need: ["tape", "mop"], toast: "钥匙串就挂在值班表下面的钩子上" },
   key2: { name: "教务处门禁卡", short: "门禁卡", room: "教务处", floor: 1, need: ["letter", "rec"], toast: "门禁卡被压在成绩单底下" },
-  key3: { name: "配电箱保险丝", short: "保险丝", room: "配电间", floor: 2, need: ["phone", "uniform"], toast: "保险丝被换下来搁在箱子上" }
+  key3: { name: "天台门的保险丝", short: "保险丝", room: "配电间", floor: 2, need: ["phone", "uniform"], toast: "天台门是电动的，断电以后打不开 —— 保险丝被人从配电箱里拔下来，搁在箱子上" }
 };
 
 /* ---------- 锁 ---------- */
 var LOCKS = {
   lock1: { key: "key1", name: "消防门", open: "消防门开了，后面是往上去的楼梯。", need: "锁着 —— 得先去保安室找钥匙串。" },
   lock2: { key: "key2", name: "电子门禁", open: "门禁「嘀」了一声，绿灯亮起。", need: "读卡器还在闪红灯 —— 得去教务处弄张门禁卡。" },
-  lock3: { key: "key3", name: "断电连锁门", open: "门上的电磁锁松开了。楼梯尽头就是天台。", need: "断电连锁 —— 得先把配电箱的保险丝装回去。" }
+  lock3: { key: "key3", name: "天台门", open: "电磁锁松开了，门朝外推开一条缝，风灌进来。", need: "天台门是电动的，断电打不开 —— 得把配电箱的保险丝装回去。" }
 };
 
 /* ---------- 六件线索全文 ---------- */

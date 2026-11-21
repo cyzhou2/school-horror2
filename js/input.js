@@ -182,7 +182,13 @@ var Input = {
       b.classList.toggle("on", on);
     }
     if (announce && typeof Game !== "undefined" && Game.toast) {
-      Game.toast(on ? "跑" : "走", on ? "现在按住方向会跑，Shift 临时改成走" : "现在按住方向是走，Shift 临时改成跑", 2000);
+      var tip;
+      if (this.touchMode) {
+        tip = on ? "点过的地方，他会跑过去 —— 声音更大，也更费体力" : "点过的地方，他会走过去 —— 更安静";
+      } else {
+        tip = on ? "现在按住方向会跑，Shift 临时改成走" : "现在按住方向是走，Shift 临时改成跑";
+      }
+      Game.toast(on ? "跑" : "走", tip, 2200);
     }
   },
 

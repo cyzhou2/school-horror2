@@ -544,7 +544,7 @@ var Game = {
   openStairs: function (prop) {
     this.pendingStair = prop || null;
     this.state = "stairs";
-    var locked = this.floor < 2 && this.doorStates[this.stairLockId(this.floor)] !== "open";
+    var locked = this.doorStates[this.stairLockId(this.floor)] !== "open";
 
     // 走到楼梯口、身上有钥匙：直接开
     if (locked) {
@@ -594,13 +594,13 @@ var Game = {
 
   useStairs: function (dir) {
     var stairId = (this.pendingStair && this.pendingStair.stairId) || "north";
-    // 上楼要本层钥匙
-    if (dir > 0 && this.floor < 2 && this.doorStates[this.stairLockId(this.floor)] !== "open") {
+    // 上楼：每层都有本层的门锁 —— 一楼消防门、二楼门禁、三楼就是天台门
+    if (dir > 0 && this.doorStates[this.stairLockId(this.floor)] !== "open") {
       AudioSys.stinger("locker", 0.7);
-      this.toast("门禁没开", LOCKS[this.stairLockId(this.floor)].need, 2800);
+      this.toast(this.floor >= 2 ? "天台门打不开" : "门禁没开",
+        LOCKS[this.stairLockId(this.floor)].need, 3000);
       return;
     }
-    // 上天台要先集齐证据
     if (dir > 0 && this.floor >= 2 && this.clueCount < 6) {
       this.toast("证据还不够", "现在上去，等于把这一夜白送。还差 " + (6 - this.clueCount) + " 件。", 3200);
       return;
