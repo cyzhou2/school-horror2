@@ -12,12 +12,12 @@ var World = {
   props: null,
   rooms: null,
 
-  build: function (levelIndex) {
-    this.load(levelIndex || 0);
+  build: function (levelIndex, extra) {
+    this.load(levelIndex || 0, extra);
     return this;
   },
 
-  load: function (idx) {
+  load: function (idx, extra) {
     var lv = LEVELS[idx];
     if (!lv) return;
     this.levelIndex = idx;
@@ -64,8 +64,17 @@ var World = {
           if (this.inBounds(x, y)) this.grid[y][x] = 1;
     }, this);
 
-    // 物件
-    this.props = lv.props.map(function (p, idx2) {
+    // 物件（本局随机挑好的线索与钥匙会作为额外物件加进来）
+    var allProps = lv.props.slice();
+    if (extra) {
+      (extra.clues || []).forEach(function (c) {
+        allProps.push({ t: "clue", x: c.x, y: c.y, clue: c.id, label: c.label });
+      });
+      if (extra.key) {
+        allProps.push({ t: "key", x: extra.key.x, y: extra.key.y, key: extra.key.id, label: extra.key.label || "拿走钥匙" });
+      }
+    }
+    this.props = allProps.map(function (p, idx2) {
       var type = p.t;
       var solid = !(p.decor || type === "clue" || type === "key");
       // 低矮家具：挡路，但不挡视线（桌椅、纸箱、洗手台、长条实验台等）

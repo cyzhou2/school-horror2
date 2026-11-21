@@ -175,7 +175,8 @@ var Game = {
     this.exploreT = 0;
 
     this.floor = 0;
-    World.build(0);
+    this.pickRun();
+    World.build(0, this.levelExtra(0));
     Renderer.bake();
 
     var sp = LEVELS[0].spawn;
@@ -572,7 +573,7 @@ var Game = {
     stairId = stairId || "north";
     this.lastStair = stairId;
     this.floor = target;
-    World.load(target);
+    World.load(target, this.levelExtra(target));
     Renderer.bake();
     this.applyLevelState();
 
@@ -610,6 +611,51 @@ var Game = {
   },
 
   /* ================= 钥匙与线索 ================= */
+  /* 每局开局抽取：每层 2 个线索（不同房间）+ 1 个钥匙点，全部随机 */
+  pickRun: function () {
+    this.floorClues = {};
+    this.floorSpots = {};
+    this.keyPick = {};
+    var order = 1;
+    for (var f = 0; f < LEVELS.length; f++) {
+      var lv = LEVELS[f];
+      var spots = (lv.clueSpots || []).slice();
+      // 洗牌
+      for (var i = spots.length - 1; i > 0; i--) {
+        var j = Math.floor(Math.random() * (i + 1));
+        var tmp = spots[i]; spots[i] = spots[j]; spots[j] = tmp;
+      }
+      var chosen = [], used = {};
+      for (var s = 0; s < spots.length && chosen.length < 2; s++) {
+        if (used[spots[s].room]) continue;
+        used[spots[s].room] = 1;
+        chosen.push(spots[s]);
+      }
+      chosen.forEach(function (c) { CLUES[c.id].order = order++; });
+      this.floorSpots[f] = chosen;
+      this.floorClues[f] = chosen.map(function (c) { return c.id; });
+
+      // 钥匙：随机一个点，且不要和这一层的线索重叠
+      var ks = (lv.keySpots || []).slice();
+      var pick = ks[Math.floor(Math.random() * ks.length)] || { x: 6.5, y: 5.4, room: "保安室" };
+      for (var t2 = 0; t2 < ks.length; t2++) {
+        var cand = ks[(Math.floor(Math.random() * ks.length) + t2) % ks.length];
+        var bad = chosen.some(function (c) { return Math.abs(c.x - cand.x) < 1.5 && Math.abs(c.y - cand.y) < 1.5; });
+        if (!bad) { pick = cand; break; }
+      }
+      var kid = ["key1", "key2", "key3"][f];
+      this.keyPick[f] = { x: pick.x, y: pick.y, room: pick.room, id: kid, label: "拿走" + KEYS[kid].name };
+    }
+  },
+
+  /* 交给 World.load 的“本局额外物件” */
+  levelExtra: function (f) {
+    return {
+      clues: this.floorSpots[f] || [],
+      key: this.keyPick[f] || null
+    };
+  },
+
   clueReady: function (need) {
     for (var i = 0; i < need.length; i++) if (!this.clues[need[i]]) return false;
     return true;
@@ -618,16 +664,19 @@ var Game = {
   revealKeysIfReady: function () {
     for (var k in KEYS) {
       if (this.keys[k] || this.revealedKeys[k]) continue;
-      if (!this.clueReady(KEYS[k].need)) continue;
+      var f = KEYS[k].floor;
+      var ids = this.floorClues[f] || [];
+      if (!ids.length || !this.clueReady(ids)) continue;
       this.revealedKeys[k] = true;
       World.props.forEach(function (p) {
         if (p.t === "key" && p.key === k) p.revealed = true;
       });
       var K = KEYS[k];
-      this.toast("想起来了", K.toast + " —— 回" + K.room + "去拿" + K.name, 4200);
-      this.live.say(K.room + "！钥匙在" + K.room + "！", "hot");
+      var room = (this.keyPick[f] && this.keyPick[f].room) || K.room;
+      this.toast("想起来了", K.toast + " —— 回" + room + "去拿" + K.name, 4200);
+      this.live.say(room + "！钥匙在" + room + "！", "hot");
       this.live.say(K.name + "！别漏了", "hot");
-      if (!this.radioLost) this.radioSay("灵灵", K.room + "，值班表那边，快拿。", 4);
+      if (!this.radioLost) this.radioSay("灵灵", room + "，快拿。", 4);
       this.updateObjective();
     }
   },
@@ -1104,7 +1153,7 @@ var Game = {
 
     if (cp.floor !== this.floor) {
       this.floor = cp.floor;
-      World.load(cp.floor);
+      World.load(cp.floor, this.levelExtra(cp.floor));
       Renderer.bake();
       this.applyLevelState();
       this.updateFloorUi();
@@ -1525,7 +1574,9 @@ var Game = {
     if (n < 2) {
       txt = now + "：找齐 2 件线索（" + n + "/2）";
     } else if (!this.keys[keyId]) {
-      txt = "回" + KEYS[keyId].room + "拿" + KEYS[keyId].short;
+      var kf = KEYS[keyId].floor;
+      var kroom = (this.keyPick && this.keyPick[kf] && this.keyPick[kf].room) || KEYS[keyId].room;
+      txt = "回" + kroom + "拿" + KEYS[keyId].short;
     } else if (this.doorStates[lockId] !== "open") {
       txt = "用" + KEYS[keyId].name + "打开" + LOCKS[lockId].name;
     } else if (f < 2) {
