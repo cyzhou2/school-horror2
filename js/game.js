@@ -1372,16 +1372,24 @@ var Game = {
     this.hideAllOverlays();
     this.state = "ending";
 
-    document.getElementById("endingLabel").textContent = e.label;
-    document.getElementById("endingTitle").textContent = e.title;
-    var html = e.paras.map(function (p) { return "<p>" + p + "</p>"; }).join("");
-    html += '<div class="final">' + e.final + "</div>";
-
-    // 结算：不同结局看不同的东西
+    // 结算用的真实数字（下播那一刻是多少就是多少）
     var peak = Math.floor(this.peakViewers || this.live.viewers);
     var fin = Math.floor(this.live.viewers);
     var mins = Math.floor(this.time / 60), secs = Math.floor(this.time % 60);
-    var grew = fin - 127;
+    var grew = Math.floor(fin - 127);
+    var fmt = function (n) { return Math.max(0, Math.round(n)).toLocaleString("en-US"); };
+    var fill = function (t) {
+      return String(t)
+        .replace(/\{grew\}/g, fmt(grew))
+        .replace(/\{peak\}/g, fmt(peak))
+        .replace(/\{fin\}/g, fmt(fin));
+    };
+
+    document.getElementById("endingLabel").textContent = e.label;
+    document.getElementById("endingTitle").textContent = e.title;
+    var html = e.paras.map(function (p) { return "<p>" + fill(p) + "</p>"; }).join("");
+    html += '<div class="final">' + fill(e.final) + "</div>";
+
     var rows = "";
     function row(k, v, cls) {
       return '<div class="settle-row"><span>' + k + '</span><b' + (cls ? ' class="' + cls + '"' : '') + '>' + v + '</b></div>';
@@ -1397,9 +1405,9 @@ var Game = {
       rows += row("用时", mins + ":" + (secs < 10 ? "0" : "") + secs);
     } else if (kind === "half") {
       // 假结局：涨粉成功，真相被剪掉
-      rows += row("峰值在线", peak.toLocaleString("en-US"));
-      rows += row("下播时在线", fin.toLocaleString("en-US"));
-      rows += row("涨粉", "+" + grew.toLocaleString("en-US"), "up");
+      rows += row("峰值在线", fmt(peak));
+      rows += row("下播时在线", fmt(fin));
+      rows += row("涨粉", (grew >= 0 ? "+" : "") + fmt(grew), "up");
       rows += row("被剪掉的部分", "4 / 6 件", "shut");
       rows += row("线索", this.clueCount + " / 6");
       rows += row("用时", mins + ":" + (secs < 10 ? "0" : "") + secs);
