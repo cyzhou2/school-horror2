@@ -581,7 +581,7 @@ var Game = {
     this.cancelAutoMove();
 
     // 快鬼不跟着“传送”：换层后它也在这一层重新落位，且不会在你附近
-    if (this.ghost.active) this.resetGhostPosition(18);
+    if (this.ghost.active) this.resetGhostPosition(18, stairId);
     // 上楼就是甩脱：给你一段“它找不到你”的缓冲
     this.graceT = 3.0;
 
@@ -1179,9 +1179,23 @@ var Game = {
   },
 
   /* 重新落位：位置、状态、路径一起重置 */
-  resetGhostPosition: function (minTiles) {
-    var g = this.ghost, T = CFG.TILE;
-    var pt = this.placeGhostAway(minTiles);
+  /* 重新落位。
+     oppositeStair：玩家是从哪一侧楼梯上来的 —— 鬼就硬性放到“对面那侧楼梯间”。
+     这是硬规则，不参与随机，保证“上楼必定甩开”。 */
+  resetGhostPosition: function (minTiles, oppositeStair) {
+    var g = this.ghost, T = CFG.TILE, p = this.player;
+    minTiles = minTiles || 15;
+    var pt = null;
+
+    if (oppositeStair) {
+      pt = oppositeStair === "south" ? { x: 56, y: 11.5 } : { x: 6, y: 38.5 };
+      var wx = pt.x * T, wy = pt.y * T;
+      var dd = Math.sqrt((wx - p.x) * (wx - p.x) + (wy - p.y) * (wy - p.y)) / T;
+      // 极端情况下（对面楼梯刚好能看见你）才退回随机远点
+      if (dd < minTiles || World.los(p.x, p.y, wx, wy)) pt = null;
+    }
+    if (!pt) pt = this.placeGhostAway(minTiles);
+
     g.x = pt.x * T;
     g.y = pt.y * T;
     g.path = []; g.pathI = 0;
@@ -1193,7 +1207,7 @@ var Game = {
     g.breakT = 0;
     g.lostT = 0;
     g.trail.length = 0;
-    g.freezeT = 1.4;
+    g.freezeT = 2.0;
   },
 
   /* ================= 点击寻路 ================= */
