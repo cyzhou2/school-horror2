@@ -96,6 +96,23 @@ var Game = {
       });
     };
     on("btnStart", function () { self.startRun(); });
+
+    var diffBtns = document.querySelectorAll(".diff-btn");
+    for (var di = 0; di < diffBtns.length; di++) {
+      (function (btn) {
+        btn.addEventListener("click", function (e) {
+          e.preventDefault();
+          AudioSys.resume();
+          AudioSys.ui();
+          self.diff = btn.getAttribute("data-diff");
+          self.diffCfg = DIFFS[self.diff] || DIFFS.normal;
+          var all = document.querySelectorAll(".diff-btn");
+          for (var k = 0; k < all.length; k++) all[k].classList.toggle("on", all[k] === btn);
+          var bt = document.getElementById("buildTag");
+          if (bt) bt.textContent = (typeof GAME_VERSION !== "undefined" ? GAME_VERSION : "") + " · " + self.diffCfg.name;
+        });
+      })(diffBtns[di]);
+    }
     on("btnDocClose", function () { self.advanceDoc(); });
     on("btnRetry", function () { self.retry(); });
     on("btnGiveUp", function () { self.toTitle(); });
@@ -145,7 +162,8 @@ var Game = {
     AudioSys.startMusic();
 
     this.hideAllOverlays();
-    this.clues = { tape: false, log: false, letter: false, rec: false, phone: false, uniform: false };
+    this.clues = {};
+    this.clueOrder = {};
     this.clueCount = 0;
     this.keys = {};
     this.doorStates = {};
@@ -168,6 +186,8 @@ var Game = {
     this.buzzT = 10;
     this.buzzFlash = 0;
     this.buzzHinted = false;
+    this.diff = this.diff || "normal";
+    this.diffCfg = DIFFS[this.diff] || DIFFS.normal;
     this.deathCount = 0;
     this.updateBlood();
     this.peakViewers = this.live.viewers;
@@ -319,7 +339,9 @@ var Game = {
         this.shake = Math.min(1, this.shake + 0.12);
         if (!this.buzzHinted) {
           this.buzzHinted = true;
-          this.toast("手机在震", "人气太高，弹幕提示音会把鬼引过来 —— 按 L 关播", 3800);
+          if (this.ghost.active && this.ghostWakeT > 3) {
+            this.toast("手机在震", "人气太高，弹幕提示音会把鬼引过来 —— 按 L 关播", 3800);
+          }
         }
       }
     }
@@ -422,7 +444,10 @@ var Game = {
     Renderer.shake = this.shake;
     AudioSys.ambienceLevel(this.live.heat / 100);
 
-    if (!this.heatHinted && this.live.heat > 62) {
+    // 鬼醒着的时候才计时：没鬼的时候不该教玩家“关播降温”
+    if (this.ghost.active) this.ghostWakeT = (this.ghostWakeT || 0) + dt;
+
+    if (!this.heatHinted && this.live.heat > 62 && this.ghost.active && this.ghostWakeT > 5) {
       this.heatHinted = true;
       this.toast("热度上来了", "人越多，它越兴奋 —— 按 L 可以关播降温", 3200);
     }
@@ -618,9 +643,11 @@ var Game = {
   /* ================= 钥匙与线索 ================= */
   /* 每局开局抽取：每层 2 个线索（不同房间）+ 1 个钥匙点，全部随机 */
   pickRun: function () {
+    var self = this;
     this.floorClues = {};
     this.floorSpots = {};
     this.keyPick = {};
+    this.clueOrder = {};
     var order = 1;
     for (var f = 0; f < LEVELS.length; f++) {
       var lv = LEVELS[f];
@@ -636,7 +663,11 @@ var Game = {
         used[spots[s].room] = 1;
         chosen.push(spots[s]);
       }
-      chosen.forEach(function (c) { CLUES[c.id].order = order++; });
+      chosen.forEach(function (c) {
+        CLUES[c.id].order = order;
+        self.clueOrder[c.id] = order;
+        order++;
+      });
       this.floorSpots[f] = chosen;
       this.floorClues[f] = chosen.map(function (c) { return c.id; });
 
@@ -993,6 +1024,7 @@ var Game = {
     if (this.ghost.active) return;
     var g = this.ghost;
     var T = CFG.TILE;
+    this.ghostWakeT = 0;
     var sp = LEVELS[this.floor].ghostSpawn;
     var pt = this.placeGhostAway(15) || { x: 30, y: 18 };
     g.spawn(pt.x * T, pt.y * T);
@@ -1012,6 +1044,7 @@ var Game = {
   /* 三层：先给一个征兆，不放出鬼 */
   onEnterThirdFloor: function () {
     if (this.slowHinted) return;
+    if (this.diffCfg && this.diffCfg.noSlow) return;
     this.slowHinted = true;
     if (this.slowSpawned) return;
     this.toast("楼上有东西在走", "很慢，但没有停", 3400);
@@ -1026,6 +1059,7 @@ var Game = {
   /* 证据过半：它从看不见的那座楼梯间走上来 */
   spawnSlowGhost: function () {
     if (this.slowSpawned) return;
+    if (this.diffCfg && this.diffCfg.noSlow) return;
     this.slowSpawned = true;
     var T = CFG.TILE;
     // 七成从楼梯间上来（有“爬上来”的暗示），三成在别的角落——不固定
@@ -1567,13 +1601,16 @@ var Game = {
     }, 2200);
   },
 
+  /* 右上角六格：拿到几条就依次点亮几条（线索是随机的，不再按 id 对应） */
   updateClueUi: function () {
     var chips = document.querySelectorAll(".clue-chip");
+    var got = [];
+    for (var k in this.clues) if (this.clues[k]) got.push(this.clueOrder[k] || 0);
+    got.sort(function (a, b) { return a - b; });
     for (var i = 0; i < chips.length; i++) {
-      var key = chips[i].getAttribute("data-clue");
-      var got = !!this.clues[key];
-      chips[i].classList.toggle("found", got);
-      chips[i].textContent = got ? String(CLUES[key].order) : "?";
+      var has = i < got.length;
+      chips[i].classList.toggle("found", has);
+      chips[i].textContent = has ? String(got[i]) : "?";
     }
   },
 

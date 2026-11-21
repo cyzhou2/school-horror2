@@ -2,7 +2,17 @@
 "use strict";
 
 /* 版本号：每次改完同步改这里 + index.html 里的 ?v= */
-var GAME_VERSION = "v5.6 · 20251121f";
+var GAME_VERSION = "v5.7 · 20251121g";
+
+/* 难度：只改鬼的移速与感知范围；简单里没有慢鬼 */
+var DIFFS = {
+  easy:   { key: "easy",   name: "简单", icon: "◉", speed: 0.78, sight: 0.68, noSlow: true,
+            desc: "它更慢、也更瞎；不会有第二个" },
+  normal: { key: "normal", name: "普通", icon: "☠", speed: 1.00, sight: 1.00, noSlow: false,
+            desc: "标准难度，慢鬼会跟着你上楼" },
+  hard:   { key: "hard",   name: "困难", icon: "⚰", speed: 1.16, sight: 1.32, noSlow: false,
+            desc: "它更快、看得更远，慢鬼也更快" }
+};
 
 var CFG = {
   TILE: 32,

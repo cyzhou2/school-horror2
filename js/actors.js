@@ -165,6 +165,7 @@ var Ghost = {
     var t = 2 / (1 + Math.exp(-v / k)) - 1;
     var base = CFG.GHOST_FAST_MIN + (CFG.GHOST_FAST_MAX - CFG.GHOST_FAST_MIN) * t;
 
+    if (g.diffCfg && g.diffCfg.speed) base *= g.diffCfg.speed;
     if (this.state === "chase") return base;
     if (this.state === "hunt") return base * 0.92;
     if (this.state === "alert" || this.state === "search") return base * 0.8;
@@ -173,6 +174,7 @@ var Ghost = {
 
   sightRange: function (g) {
     var r = CFG.GHOST_SIGHT + g.live.heat * 0.55;
+    if (g.diffCfg && g.diffCfg.sight) r *= g.diffCfg.sight;
     if (!g.player.hidden) r += g.lightOn ? 80 : -50;
     return r;
   },
@@ -695,7 +697,7 @@ var SlowGhost = {
     if (!node) return;
     var dx = node.x - this.x, dy = node.y - this.y;
     var d = Math.sqrt(dx * dx + dy * dy);
-    var sp = CFG.SLOW_SPEED * dt;
+    var sp = CFG.SLOW_SPEED * ((g.diffCfg && g.diffCfg.speed) || 1) * dt;
     if (d < sp) {
       this.stepTo(node.x, node.y);
       this.pathI++;
@@ -709,7 +711,7 @@ var SlowGhost = {
     var dx = tx - this.x, dy = ty - this.y;
     var d = Math.sqrt(dx * dx + dy * dy);
     if (d < 1) return;
-    var sp = CFG.SLOW_SPEED * dt;
+    var sp = CFG.SLOW_SPEED * ((g.diffCfg && g.diffCfg.speed) || 1) * dt;
     this.stepTo(this.x + dx / d * sp, this.y + dy / d * sp);
   },
 

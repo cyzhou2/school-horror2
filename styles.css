@@ -478,3 +478,42 @@ h1 {
   .tbtn { min-width: 62px; min-height: 62px; font-size: 13px; }
   #stick { width: 118px; height: 118px; }
 }
+
+
+/* ===== 难度选择 ===== */
+.diff-row {
+  display: flex; gap: 10px; justify-content: center;
+  margin: 4px 0 18px;
+}
+.diff-btn {
+  flex: 1 1 0; max-width: 108px;
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  padding: 9px 6px 8px;
+  font-family: var(--sans); font-size: 11.5px; letter-spacing: .12em;
+  color: rgba(200,190,170,.55);
+  background: rgba(20,18,16,.55);
+  border: 1px solid rgba(150,140,120,.22);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: color .15s, border-color .15s, background .15s;
+}
+.diff-btn .diff-ico {
+  font-size: 19px; line-height: 1;
+  color: rgba(200,190,170,.5);
+  text-shadow: 0 0 10px rgba(0,0,0,.8);
+}
+.diff-btn .diff-name { letter-spacing: .18em; }
+.diff-btn:hover { color: #ded5c4; border-color: rgba(190,180,160,.4); }
+.diff-btn.on {
+  color: #f0e6d2;
+  background: rgba(120,20,30,.28);
+  border-color: rgba(200,60,74,.55);
+}
+.diff-btn.on .diff-ico {
+  color: #d8404f;
+  text-shadow: 0 0 14px rgba(200,40,60,.75);
+}
+@media (max-aspect-ratio: 1/1) {
+  .diff-btn { max-width: 92px; font-size: 11px; padding: 8px 4px 7px; }
+  .diff-btn .diff-ico { font-size: 17px; }
+}
