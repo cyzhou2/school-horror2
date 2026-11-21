@@ -522,33 +522,38 @@ var Renderer = {
       if (p.t === "hooded") {
         if (!p.active) continue;
         var hs = toS(p.px, p.py);
-        var bob = Math.sin(t * 1.4) * 1.6;
+        var bob = Math.sin(t * 1.1) * 1.2;
         // 影子
-        c.fillStyle = "rgba(0,0,0,0.5)";
-        c.beginPath(); c.ellipse(hs.x, hs.y + 12, 10, 4, 0, 0, 6.283); c.fill();
-        // 黑袍
-        c.fillStyle = "#0d0c0d";
+        c.fillStyle = "rgba(0,0,0,0.45)";
+        c.beginPath(); c.ellipse(hs.x, hs.y + 13, 11, 4.5, 0, 0, 6.283); c.fill();
+        // 长外套（灰蓝色，不是黑的）
+        c.fillStyle = "#2b2f33";
         c.beginPath();
-        c.moveTo(hs.x - 9, hs.y + 12 + bob);
-        c.quadraticCurveTo(hs.x - 11, hs.y - 6 + bob, hs.x, hs.y - 9 + bob);
-        c.quadraticCurveTo(hs.x + 11, hs.y - 6 + bob, hs.x + 9, hs.y + 12 + bob);
+        c.moveTo(hs.x - 9, hs.y + 13 + bob);
+        c.quadraticCurveTo(hs.x - 12, hs.y - 4 + bob, hs.x - 5, hs.y - 9 + bob);
+        c.lineTo(hs.x + 5, hs.y - 9 + bob);
+        c.quadraticCurveTo(hs.x + 12, hs.y - 4 + bob, hs.x + 9, hs.y + 13 + bob);
         c.closePath();
         c.fill();
-        // 兜帽
-        c.fillStyle = "#151315";
+        // 肩膀的一条浅色边
+        c.strokeStyle = "rgba(150,156,160,0.35)";
+        c.lineWidth = 1.4;
         c.beginPath();
-        c.arc(hs.x, hs.y - 5 + bob, 6.4, Math.PI * 0.95, Math.PI * 2.05);
-        c.fill();
-        // 兜帽下的两点暗光
-        c.fillStyle = "rgba(210,60,60,0.55)";
-        c.beginPath(); c.arc(hs.x - 2.1, hs.y - 4 + bob, 1.1, 0, 6.283); c.fill();
-        c.beginPath(); c.arc(hs.x + 2.1, hs.y - 4 + bob, 1.1, 0, 6.283); c.fill();
-        // 一圈很淡的红光
-        var hg = c.createRadialGradient(hs.x, hs.y, 0, hs.x, hs.y, 26);
-        hg.addColorStop(0, "rgba(160,24,34,0.16)");
-        hg.addColorStop(1, "rgba(160,24,34,0)");
-        c.fillStyle = hg;
-        c.beginPath(); c.arc(hs.x, hs.y, 26, 0, 6.283); c.fill();
+        c.moveTo(hs.x - 6, hs.y - 7 + bob);
+        c.lineTo(hs.x + 6, hs.y - 7 + bob);
+        c.stroke();
+        // 头（低着，看不见脸）
+        c.fillStyle = "#3a3f44";
+        c.beginPath(); c.arc(hs.x, hs.y - 13 + bob, 5, 0, 6.283); c.fill();
+        // 手里手机的冷光
+        var phx = hs.x + 6.5, phy = hs.y - 2 + bob;
+        var pg2 = c.createRadialGradient(phx, phy, 0, phx, phy, 15);
+        pg2.addColorStop(0, "rgba(150,190,220," + (0.30 + 0.06 * Math.sin(t * 2.2)) + ")");
+        pg2.addColorStop(1, "rgba(150,190,220,0)");
+        c.fillStyle = pg2;
+        c.beginPath(); c.arc(phx, phy, 15, 0, 6.283); c.fill();
+        c.fillStyle = "rgba(190,215,235,0.75)";
+        c.fillRect(phx - 1.6, phy - 2.6, 3.2, 5.2);
         continue;
       }
       if (p.t === "firedoor") {

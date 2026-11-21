@@ -422,6 +422,7 @@ h1 {
 .settle-row b { color: #e6dcc8; font-weight: 600; }
 .settle-row b.up { color: #b8544a; }
 .settle-row b.down { color: #6f7d72; }
+.settle-row b.shut { color: #8c3a3a; }
 .choice-body {
   font-family: var(--sans); font-size: 13.5px; line-height: 2.1; color: #a89e8f;
   margin: 0 0 26px;

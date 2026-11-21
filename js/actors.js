@@ -381,6 +381,16 @@ var Ghost = {
 
   perceive: function (g) {
     var p = g.player;
+    // 刚换层：它跟丢了（上楼/下楼就是甩脱）
+    if (g.graceT > 0) {
+      if (this.state === "chase" || this.state === "hunt") {
+        this.state = "patrol";
+        this.path = [];
+        this.huntProp = null;
+        this.lostT = 0;
+      }
+      return;
+    }
     if (!p.hidden) {
       var dx = p.x - this.x, dy = p.y - this.y;
       var d = Math.sqrt(dx * dx + dy * dy);
@@ -658,7 +668,7 @@ var SlowGhost = {
     } else {
       this.countT = 0;
       var d2 = Math.hypot(p.x - this.x, p.y - this.y);
-      if (d2 < CFG.SLOW_CATCH) g.die("它抓住了你");
+      if (d2 < CFG.SLOW_CATCH && !(g.graceT > 0)) g.die("它抓住了你");
     }
 
     // 脚步与拖影

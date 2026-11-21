@@ -99,6 +99,7 @@ var Game = {
     on("btnRetry", function () { self.retry(); });
     on("btnGiveUp", function () { self.toTitle(); });
     on("btnPublish", function () { self.publishEvidence(); });
+    on("btnCut", function () { self.showEnding("half"); });
     on("btnDelete", function () { self.showEnding("black"); });
     on("btnRethink", function () { self.closeChoice(); });
     on("btnEndBack", function () { self.toTitle(); });
@@ -386,6 +387,9 @@ var Game = {
     AudioSys.musicTick(dt, musI);
     AudioSys.musicLevel(musI);
 
+    // 上楼缓冲：这段时间它“跟丢”了你
+    if (this.graceT > 0) this.graceT = Math.max(0, this.graceT - dt);
+
     // 峰值观众（结局结算用）
     this.peakViewers = Math.max(this.peakViewers || 0, this.live.viewers);
     if (g.active) {
@@ -475,14 +479,43 @@ var Game = {
   },
 
   /* ================= 楼梯 ================= */
+  /* 上楼要本层的“门禁/钥匙”；没有就禁用，有就直接在楼梯口刷开 */
+  stairLockId: function (floor) {
+    return ["lock1", "lock2", "lock3"][floor];
+  },
+
   openStairs: function (prop) {
     this.pendingStair = prop || null;
     this.state = "stairs";
+    var locked = this.floor < 2 && this.doorStates[this.stairLockId(this.floor)] !== "open";
+
+    // 走到楼梯口、身上有钥匙：直接开
+    if (locked) {
+      var L = LOCKS[this.stairLockId(this.floor)];
+      if (this.keys[L.key]) {
+        this.doorStates[this.stairLockId(this.floor)] = "open";
+        World.refreshDoors();
+        AudioSys.stinger("door", 1);
+        this.live.addHeat(6);
+        this.toast(L.name + "开了", L.open, 3000);
+        this.updateObjective();
+        locked = false;
+      } else {
+        AudioSys.stinger("locker", 0.7);
+        this.toast("上不去", L.need, 3200);
+      }
+    }
+
     var up = document.getElementById("btnStairUp");
     var down = document.getElementById("btnStairDown");
     if (up) {
-      var locked = this.floor < 2 && this.doorStates[["lock1", "lock2", "lock3"][this.floor]] !== "open";
-      up.textContent = (this.floor >= 2 ? "上天台" : "上楼（" + LEVELS[this.floor + 1].floorLabel + "）") + (locked ? " · 锁着" : "");
+      var needClues = this.floor >= 2 && this.clueCount < 6;
+      var label = this.floor >= 2 ? "上天台" : "上楼（" + LEVELS[this.floor + 1].floorLabel + "）";
+      if (locked) label += " · 锁着";
+      if (needClues) label += " · 证据不够";
+      up.textContent = label;
+      up.disabled = locked || needClues;
+      up.classList.toggle("disabled", locked || needClues);
     }
     if (down) down.classList.toggle("hidden", this.floor <= 0);
     var info = document.getElementById("stairInfo");
@@ -504,14 +537,16 @@ var Game = {
 
   useStairs: function (dir) {
     var stairId = (this.pendingStair && this.pendingStair.stairId) || "north";
-    // 上楼要本层的钥匙；下楼永远自由
-    if (dir > 0 && this.floor < 2) {
-      var lk = ["lock1", "lock2", "lock3"][this.floor];
-      if (this.doorStates[lk] !== "open") {
-        AudioSys.stinger("locker", 0.7);
-        this.toast("楼梯锁着", LOCKS[lk].need, 2800);
-        return;
-      }
+    // 上楼要本层钥匙
+    if (dir > 0 && this.floor < 2 && this.doorStates[this.stairLockId(this.floor)] !== "open") {
+      AudioSys.stinger("locker", 0.7);
+      this.toast("门禁没开", LOCKS[this.stairLockId(this.floor)].need, 2800);
+      return;
+    }
+    // 上天台要先集齐证据
+    if (dir > 0 && this.floor >= 2 && this.clueCount < 6) {
+      this.toast("证据还不够", "现在上去，等于把这一夜白送。还差 " + (6 - this.clueCount) + " 件。", 3200);
+      return;
     }
     this.closeStairs();
     if (dir > 0) {
@@ -546,7 +581,9 @@ var Game = {
     this.cancelAutoMove();
 
     // 快鬼不跟着“传送”：换层后它也在这一层重新落位，且不会在你附近
-    if (this.ghost.active) this.resetGhostPosition(15);
+    if (this.ghost.active) this.resetGhostPosition(18);
+    // 上楼就是甩脱：给你一段“它找不到你”的缓冲
+    this.graceT = 3.0;
 
     if (this.ghostWoken) {
       var gs = LEVELS[target].ghostSpawn;
@@ -792,22 +829,16 @@ var Game = {
     }
   },
 
-  /* 六件齐了，一楼大厅会站着一个人 */
+  /* 六件齐了，一楼大厅会站着一个人（不给任何提示 —— 撞见才算） */
   syncHooded: function () {
     var on = this.clueCount >= 6;
     World.props.forEach(function (p) { if (p.t === "hooded") p.active = on; });
-    if (on && !this.hoodedHinted) {
-      this.hoodedHinted = true;
-      this.toast("大厅里站着一个人", "黑色兜帽。他好像一直在等你", 4600);
-      if (!this.radioLost) this.radioSay("灵灵", "大厅……大厅有人。东西先别发。", 4);
-      this.live.say("一楼大厅有个人！！", "panic");
-    }
   },
 
   /* 把证据交给他 = 隐藏结局 */
   talkHooded: function () {
     if (this.clueCount < 6) {
-      this.toast("兜帽人", "他摇了摇头，指了指你空着的口袋", 2600);
+      this.toast("", "他把脸别开了，好像不想说太多", 2400);
       return;
     }
     this.state = "ending";
@@ -1346,20 +1377,48 @@ var Game = {
     var html = e.paras.map(function (p) { return "<p>" + p + "</p>"; }).join("");
     html += '<div class="final">' + e.final + "</div>";
 
-    // 结算：粉丝数是主要指标
+    // 结算：不同结局看不同的东西
     var peak = Math.floor(this.peakViewers || this.live.viewers);
     var fin = Math.floor(this.live.viewers);
     var mins = Math.floor(this.time / 60), secs = Math.floor(this.time % 60);
     var grew = fin - 127;
-    html += '<div class="settle">' +
-      '<div class="settle-row"><span>峰值在线</span><b>' + peak.toLocaleString("en-US") + '</b></div>' +
-      '<div class="settle-row"><span>下播时在线</span><b>' + fin.toLocaleString("en-US") + '</b></div>' +
-      '<div class="settle-row"><span>涨粉</span><b class="' + (grew >= 0 ? "up" : "down") + '">' +
-      (grew >= 0 ? "+" : "") + grew.toLocaleString("en-US") + '</b></div>' +
-      '<div class="settle-row"><span>线索</span><b>' + this.clueCount + ' / 6</b></div>' +
-      '<div class="settle-row"><span>被抓</span><b>' + (this.deathCount || 0) + ' 次</b></div>' +
-      '<div class="settle-row"><span>用时</span><b>' + mins + ":" + (secs < 10 ? "0" : "") + secs + '</b></div>' +
-      '</div>';
+    var rows = "";
+    function row(k, v, cls) {
+      return '<div class="settle-row"><span>' + k + '</span><b' + (cls ? ' class="' + cls + '"' : '') + '>' + v + '</b></div>';
+    }
+    if (kind === "good") {
+      // 真结局：说清楚了，但被封杀
+      rows += row("视频存活", "3 分 12 秒", "shut");
+      rows += row("下架理由", "涉及未成年人隐私");
+      rows += row("账号状态", "限制发言 30 天", "shut");
+      rows += row("官方通报", "网络信息严重失实");
+      rows += row("她的名字", "仍未出现", "shut");
+      rows += row("线索", this.clueCount + " / 6");
+      rows += row("用时", mins + ":" + (secs < 10 ? "0" : "") + secs);
+    } else if (kind === "half") {
+      // 假结局：涨粉成功，真相被剪掉
+      rows += row("峰值在线", peak.toLocaleString("en-US"));
+      rows += row("下播时在线", fin.toLocaleString("en-US"));
+      rows += row("涨粉", "+" + grew.toLocaleString("en-US"), "up");
+      rows += row("被剪掉的部分", "4 / 6 件", "shut");
+      rows += row("线索", this.clueCount + " / 6");
+      rows += row("用时", mins + ":" + (secs < 10 ? "0" : "") + secs);
+    } else if (kind === "hidden") {
+      // 隐藏结局：不提粉丝
+      rows += row("线索", this.clueCount + " / 6");
+      rows += row("交给它的人", "1 个");
+      rows += row("用时", mins + ":" + (secs < 10 ? "0" : "") + secs);
+    } else if (kind === "black") {
+      rows += row("删除的素材", "全部");
+      rows += row("线索", this.clueCount + " / 6");
+      rows += row("用时", mins + ":" + (secs < 10 ? "0" : "") + secs);
+    } else {
+      // 死亡结局：不谈粉丝
+      rows += row("被抓", (this.deathCount || 0) + " 次");
+      rows += row("线索", this.clueCount + " / 6");
+      rows += row("用时", mins + ":" + (secs < 10 ? "0" : "") + secs);
+    }
+    html += '<div class="settle">' + rows + '</div>';
     document.getElementById("endingBody").innerHTML = html;
     document.getElementById("endingScreen").classList.remove("hidden");
 
