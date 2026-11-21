@@ -498,10 +498,27 @@ h1 {
   transition: color .15s, border-color .15s, background .15s;
 }
 .diff-btn .diff-ico {
-  font-size: 19px; line-height: 1;
-  color: rgba(200,190,170,.5);
-  text-shadow: 0 0 10px rgba(0,0,0,.8);
+  display: flex; align-items: center; justify-content: center;
+  height: 22px; margin-bottom: 3px;
+  color: rgba(200,190,170,.55);
 }
+/* 一只眼：难度就是“它有多看得见你” */
+.diff-btn .eye {
+  position: relative; display: block;
+  width: 24px; height: 13px;
+  border: 1.4px solid currentColor;
+  border-radius: 50% / 50%;
+}
+.diff-btn .eye::after {
+  content: ""; position: absolute; left: 50%; top: 50%;
+  width: 6px; height: 6px; margin: -3px 0 0 -3px;
+  border-radius: 50%; background: currentColor;
+}
+.diff-btn[data-diff="easy"] .eye { height: 8px; width: 22px; border-width: 1.2px; }
+.diff-btn[data-diff="easy"] .eye::after { width: 5px; height: 5px; margin: -2.5px 0 0 -2.5px; }
+.diff-btn[data-diff="hard"] .eye { width: 27px; height: 15px; border-width: 1.6px; }
+.diff-btn[data-diff="hard"] .eye::after { width: 8px; height: 8px; margin: -4px 0 0 -4px; }
+.diff-btn.on[data-diff="hard"] .eye { box-shadow: 0 0 12px rgba(210,45,60,.6); }
 .diff-btn .diff-name { letter-spacing: .18em; }
 .diff-btn:hover { color: #ded5c4; border-color: rgba(190,180,160,.4); }
 .diff-btn.on {
@@ -509,11 +526,8 @@ h1 {
   background: rgba(120,20,30,.28);
   border-color: rgba(200,60,74,.55);
 }
-.diff-btn.on .diff-ico {
-  color: #d8404f;
-  text-shadow: 0 0 14px rgba(200,40,60,.75);
-}
+.diff-btn.on .diff-ico { color: #d8404f; }
 @media (max-aspect-ratio: 1/1) {
   .diff-btn { max-width: 92px; font-size: 11px; padding: 8px 4px 7px; }
-  .diff-btn .diff-ico { font-size: 17px; }
+  .diff-btn .eye { width: 21px; height: 12px; }
 }
