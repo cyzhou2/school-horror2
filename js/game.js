@@ -1378,13 +1378,24 @@ var Game = {
     var mins = Math.floor(this.time / 60), secs = Math.floor(this.time % 60);
     var grew = Math.floor(fin - 127);
     var fmt = function (n) { return Math.max(0, Math.round(n)).toLocaleString("en-US"); };
+    // 涨粉 / 掉粉都按真实数字说话（下播那一刻多少就是多少）
+    var gained = grew >= 0;
+    var fanLine;
+    if (grew >= 50000) fanLine = "数据炸了：一夜涨了 " + fmt(grew) + " 粉";
+    else if (grew >= 5000) fanLine = "数据好得离谱：一夜涨了 " + fmt(grew) + " 粉";
+    else if (grew >= 500) fanLine = "数据比预想的好：一夜涨了 " + fmt(grew) + " 粉";
+    else if (grew > 0) fanLine = "没爆，但确实涨了 " + fmt(grew) + " 粉";
+    else if (grew === 0) fanLine = "数据很平：一夜下来一个人没多";
+    else fanLine = "数据很平：一夜过去还掉了 " + fmt(Math.abs(grew)) + " 粉";
+    var fanTail = grew >= 5000 ? "，私信塞满了商务合作。" : grew >= 500 ? "，私信多了几条。" : "，没什么人私信。";
     var fill = function (t) {
-      return String(t)
-        .replace(/\{grew\}/g, fmt(grew))
+      return String(t).replace(/\{fanLine\}/g, fanLine).replace(/\{fanTail\}/g, fanTail)
+        .replace(/\{grew\}/g, fmt(Math.abs(grew)))
+        .replace(/\{grewAbs\}/g, fmt(Math.abs(grew)))
+        .replace(/\{gainWord\}/g, gained ? "涨了" : "掉了")
         .replace(/\{peak\}/g, fmt(peak))
         .replace(/\{fin\}/g, fmt(fin));
     };
-
     document.getElementById("endingLabel").textContent = e.label;
     document.getElementById("endingTitle").textContent = e.title;
     var html = e.paras.map(function (p) { return "<p>" + fill(p) + "</p>"; }).join("");
@@ -1407,7 +1418,9 @@ var Game = {
       // 假结局：涨粉成功，真相被剪掉
       rows += row("峰值在线", fmt(peak));
       rows += row("下播时在线", fmt(fin));
-      rows += row("涨粉", (grew >= 0 ? "+" : "") + fmt(grew), "up");
+      rows += row(gained ? "涨粉" : "掉粉",
+        (gained ? "+" : "−") + fmt(Math.abs(grew)),
+        gained ? "up" : "shut");
       rows += row("被剪掉的部分", "4 / 6 件", "shut");
       rows += row("线索", this.clueCount + " / 6");
       rows += row("用时", mins + ":" + (secs < 10 ? "0" : "") + secs);
