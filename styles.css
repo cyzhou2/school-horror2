@@ -423,6 +423,14 @@ h1 {
 .settle-row b.up { color: #b8544a; }
 .settle-row b.down { color: #6f7d72; }
 .settle-row b.shut { color: #8c3a3a; }
+
+/* 构建号：放在开始按钮下面，一眼能确认跑的是哪一版 */
+.build-tag {
+  margin-top: 12px;
+  font-family: var(--mono); font-size: 10.5px; letter-spacing: .18em;
+  color: rgba(200,190,170,.34);
+  text-align: center;
+}
 .choice-body {
   font-family: var(--sans); font-size: 13.5px; line-height: 2.1; color: #a89e8f;
   margin: 0 0 26px;

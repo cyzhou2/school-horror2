@@ -54,6 +54,7 @@ var Game = {
     Input.init();
     this.bindUi();
     this.buildPauseEl();
+    this.showVersion();
     this.fitCanvas();
     var self = this;
     window.addEventListener("resize", function () { self.fitCanvas(); });
@@ -123,9 +124,18 @@ var Game = {
     d.className = "overlay dark hidden";
     d.id = "pauseScreen";
     d.innerHTML = '<div class="title-wrap"><div class="ending-label">暂停</div>' +
-      '<p class="choice-body">直播还在继续，观众在等你回来。<br><br>按 ESC 继续。</p></div>';
+      '<p class="choice-body">直播还在继续，观众在等你回来。<br><br>按 ESC 继续。</p>' +
+      '<div class="build-tag">' + (typeof GAME_VERSION !== "undefined" ? GAME_VERSION : "") + '</div></div>';
     document.getElementById("app").appendChild(d);
     this.pauseEl = d;
+  },
+
+  /* 构建号：显式显示 + 打到控制台，排查“到底跑的是哪一版”全靠它 */
+  showVersion: function () {
+    var v = (typeof GAME_VERSION !== "undefined") ? GAME_VERSION : "dev";
+    var el = document.getElementById("buildTag");
+    if (el) el.textContent = v;
+    try { console.log("[封校第七十三天] build " + v); } catch (e) { /* 忽略 */ }
   },
 
   /* ================= 开关局 ================= */
@@ -585,17 +595,6 @@ var Game = {
     // 上楼就是甩脱：给你一段“它找不到你”的缓冲
     this.graceT = 3.0;
 
-    if (this.ghostWoken) {
-      var gs = LEVELS[target].ghostSpawn;
-      this.ghost.active = true;
-      this.ghost.x = gs.x * CFG.TILE;
-      this.ghost.y = gs.y * CFG.TILE;
-      this.ghost.state = "patrol";
-      this.ghost.path = [];
-      this.ghost.trail = [];
-      this.ghost.freezeT = 1.2;
-    }
-
     this.cam.x = this.clampCamX(px - CFG.VIEW_W / 2);
     this.cam.y = this.clampCamY(py - CFG.VIEW_H / 2);
     this.updateFloorUi();
@@ -941,7 +940,7 @@ var Game = {
     var g = this.ghost;
     var T = CFG.TILE;
     var sp = LEVELS[this.floor].ghostSpawn;
-    var pt = this.findSpawnPoint(false) || { x: sp.x, y: sp.y };
+    var pt = this.placeGhostAway(15) || { x: 30, y: 18 };
     g.spawn(pt.x * T, pt.y * T);
     g.wake();
     g.freezeT = 2.4;
