@@ -55,6 +55,7 @@ var Game = {
     this.bindUi();
     this.buildPauseEl();
     this.showVersion();
+    this.loadBrightness();
     this.fitCanvas();
     var self = this;
     window.addEventListener("resize", function () { self.fitCanvas(); });
@@ -528,6 +529,39 @@ var Game = {
   updateFloorUi: function () {
     var el = document.getElementById("floorLabel");
     if (el) el.textContent = LEVELS[this.floor].floorLabel;
+  },
+
+  /* ================= 亮度 ================= */
+  BRIGHT_MIN: 0.55,
+  BRIGHT_MAX: 1.9,
+
+  setBrightness: function (v, save) {
+    v = Math.max(this.BRIGHT_MIN, Math.min(this.BRIGHT_MAX, v));
+    this.brightness = v;
+    if (typeof Renderer !== "undefined") {
+      Renderer.brightness = v;
+      Renderer.lightKey = null;     // 强制重画遮罩
+    }
+    var pct = (v - this.BRIGHT_MIN) / (this.BRIGHT_MAX - this.BRIGHT_MIN);
+    var fill = document.querySelector(".bright-btn .bri-fill");
+    if (fill) fill.style.height = Math.round(pct * 100) + "%";
+    var bf = document.getElementById("brightFill");
+    if (bf) bf.style.height = Math.round(pct * 100) + "%";
+    var bk = document.getElementById("brightKnob");
+    if (bk) bk.style.bottom = Math.round(pct * 100) + "%";
+    if (save) {
+      try { localStorage.setItem("sh_brightness", String(v.toFixed(2))); } catch (e) { /* 忽略 */ }
+    }
+    return v;
+  },
+
+  loadBrightness: function () {
+    var v = 1.0;
+    try {
+      var s = localStorage.getItem("sh_brightness");
+      if (s !== null && !isNaN(parseFloat(s))) v = parseFloat(s);
+    } catch (e) { /* 忽略 */ }
+    this.setBrightness(v, false);
   },
 
   /* 真机震动：不支持就静默跳过 */

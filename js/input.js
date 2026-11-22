@@ -122,6 +122,41 @@ var Input = {
       syncMute();
     }
 
+    /* ---------- 亮度：按钮开关面板，竖条拖动 ---------- */
+    var brightBtn = document.getElementById("btnBright");
+    var brightPanel = document.getElementById("brightPanel");
+    var brightTrack = document.getElementById("brightTrack");
+    if (brightBtn && brightPanel && brightTrack) {
+      var dragging = false;
+      var applyFromY = function (clientY) {
+        var rc = brightTrack.getBoundingClientRect();
+        var k = 1 - (clientY - rc.top) / rc.height;
+        k = Math.max(0, Math.min(1, k));
+        if (Game && Game.setBrightness) {
+          Game.setBrightness(Game.BRIGHT_MIN + k * (Game.BRIGHT_MAX - Game.BRIGHT_MIN), true);
+        }
+      };
+      brightBtn.addEventListener("click", function (e) {
+        e.preventDefault(); e.stopPropagation();
+        var open = brightPanel.classList.contains("hidden");
+        brightPanel.classList.toggle("hidden", !open);
+        brightBtn.classList.toggle("on", open);
+      });
+      brightTrack.addEventListener("pointerdown", function (e) {
+        e.preventDefault(); e.stopPropagation();
+        dragging = true;
+        applyFromY(e.clientY);
+        try { brightTrack.setPointerCapture(e.pointerId); } catch (err) { /* 忽略 */ }
+      });
+      window.addEventListener("pointermove", function (e) {
+        if (!dragging) return;
+        e.preventDefault();
+        applyFromY(e.clientY);
+      }, { passive: false });
+      window.addEventListener("pointerup", function () { dragging = false; });
+      window.addEventListener("pointercancel", function () { dragging = false; });
+    }
+
     bindPress(this.dom.btnAct, function () { self.actionQueued = true; }, null);
     // 手机上跑步是“开关”（相当于大小写锁定）：点一下切换，不随松手复位
     var runBtn = this.dom.btnRun;

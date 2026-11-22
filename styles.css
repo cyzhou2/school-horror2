@@ -556,3 +556,70 @@ h1 {
 @media (max-aspect-ratio: 1/1) {
   .corner-btn { width: 34px; height: 34px; font-size: 14px; left: 12px; bottom: max(12px, env(safe-area-inset-bottom)); }
 }
+
+
+/* ===== 亮度：按钮里的小圆饼 + 竖条面板（照手机亮度条做的） ===== */
+.bright-btn {
+  left: 62px;
+  overflow: hidden;
+  padding: 0;
+}
+.bright-btn .bri-fill {
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  height: 55%;
+  background: currentColor;
+  opacity: .30;
+  pointer-events: none;
+}
+.bright-btn::after {
+  content: "";
+  position: absolute;
+  width: 12px; height: 12px;
+  border-radius: 50%;
+  border: 1.5px solid currentColor;
+  opacity: .85;
+}
+#brightPanel {
+  position: absolute;
+  left: 62px;
+  bottom: 62px;
+  z-index: 10;
+  padding: 10px 8px;
+  background: rgba(16,14,12,.82);
+  border: 1px solid rgba(150,140,120,.25);
+  border-radius: 16px;
+  backdrop-filter: blur(6px);
+}
+#brightTrack {
+  position: relative;
+  width: 16px; height: 132px;
+  border-radius: 8px;
+  background: rgba(255,255,255,.10);
+  overflow: hidden;
+  touch-action: none;
+  cursor: pointer;
+}
+#brightFill {
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  height: 55%;
+  background: rgba(230,222,200,.75);
+  pointer-events: none;
+}
+#brightKnob {
+  position: absolute;
+  left: -5px; right: -5px;
+  height: 6px;
+  bottom: 55%;
+  margin-bottom: -3px;
+  border-radius: 3px;
+  background: #f2ead6;
+  box-shadow: 0 0 6px rgba(0,0,0,.6);
+  pointer-events: none;
+}
+@media (max-aspect-ratio: 1/1) {
+  .bright-btn { left: 54px; }
+  #brightPanel { left: 54px; bottom: 56px; padding: 8px 7px; }
+  #brightTrack { height: 112px; }
+}

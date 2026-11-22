@@ -10,6 +10,7 @@ var Renderer = {
   mapCtx: null,
   T: 32,
   time: 0,
+  brightness: 1.0,   // 0.55 暗 … 1.0 基准 … 1.9 亮
   hiddenMode: false,
   shake: 0,
 
@@ -881,12 +882,16 @@ var Renderer = {
     var baseR = hidden ? 150 : (g.lightOn ? g.lightRadius() : CFG.LIGHT_OFF);
     var flick = 0.92 + Math.sin(this.time * 7.3) * 0.03 + Math.sin(this.time * 21.7) * 0.02;
     var R = Math.round(baseR * flick * (g.lightFlicker ? 0.72 : 1) / 4) * 4;
+    var bri = this.brightness || 1;
     var dark = hidden ? 0.93 : 0.90;
+    // 亮度越高，遮罩越淡（“刚好能看见”= 1.0 的基准）
+    dark = Math.max(0.34, Math.min(0.95, dark / Math.max(0.55, bri)));
 
     // 站定 / 没变化时直接复用上一帧的遮罩
     var key = [
       Math.round(p.x), Math.round(p.y), Math.round(p.face * 10), R,
-      g.lightOn ? 1 : 0, hidden ? 1 : 0, World.dynVersion || 0, g.glowSig()
+      g.lightOn ? 1 : 0, hidden ? 1 : 0, World.dynVersion || 0, g.glowSig(),
+      Math.round(bri * 40)
     ].join("|");
 
     if (key !== this.lightKey) {
