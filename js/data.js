@@ -2,7 +2,7 @@
 "use strict";
 
 /* 版本号：每次改完同步改这里 + index.html 里的 ?v= */
-var GAME_VERSION = "v6.3 · 20251121m";
+var GAME_VERSION = "v6.5 · 20251121o";
 
 /* 难度：只改鬼的移速与感知范围；简单里没有慢鬼 */
 var DIFFS = {

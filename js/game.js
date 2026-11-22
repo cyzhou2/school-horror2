@@ -143,7 +143,9 @@ var Game = {
     var d = document.createElement("div");
     d.className = "overlay dark hidden";
     d.id = "pauseScreen";
-    d.innerHTML = '<div class="title-wrap"><div class="ending-label">暂停</div>' +
+    d.innerHTML = '<div class="title-wrap">' +
+      '<button class="ov-close" id="pauseClose" title="关闭">×</button>' +
+      '<div class="ending-label">暂停</div>' +
       '<div class="set-list">' +
         '<div class="set-row"><span class="set-k">音量</span>' +
           '<input id="setVol" class="set-range" type="range" min="0" max="100" step="1" value="100">' +
@@ -155,12 +157,25 @@ var Game = {
           '<div class="seg"><button class="seg-btn on" id="segTap">点屏幕</button>' +
           '<button class="seg-btn" id="segStick">摇杆</button></div></div>' +
       '</div>' +
-      '<p class="choice-body">直播还在继续，观众在等你回来。<br><br>按 ESC 或 P 继续。</p>' +
+      '<p class="choice-body">直播还在继续，观众在等你回来。<br><br><span id="pauseHint"></span></p>' +
       '<div class="build-tag">' + (typeof GAME_VERSION !== "undefined" ? GAME_VERSION : "") + '</div></div>';
     document.getElementById("app").appendChild(d);
     this.pauseEl = d;
 
     var self2 = this;
+
+    var closeBtn = d.querySelector("#pauseClose");
+    if (closeBtn) {
+      closeBtn.addEventListener("click", function (e) {
+        e.preventDefault(); e.stopPropagation();
+        self2.togglePause();
+      });
+    }
+    // 点面板外面任意一点也能继续
+    d.addEventListener("click", function (e) {
+      if (e.target === d) self2.togglePause();
+    });
+
     var vol = d.querySelector("#setVol");
     var bri = d.querySelector("#setBri");
     var segTap = d.querySelector("#segTap");
@@ -205,6 +220,14 @@ var Game = {
     var row = d.querySelector("#setCtrlRow");
     if (row) row.classList.toggle("hidden", !Input.touchMode);
     Input.setControlMode(Input.controlMode || "tap", false);
+
+    // 退出方式：触屏说“点外面 / 右上角 ×”，电脑还说 ESC / P
+    var hint = d.querySelector("#pauseHint");
+    if (hint) {
+      hint.innerHTML = Input.touchMode
+        ? "点面板外面任意一点，或右上角的 <b>×</b> 继续"
+        : "按 <b>ESC</b> / <b>P</b> 继续（也可以点面板外面）";
+    }
   },
 
   /* 构建号：显式显示 + 打到控制台，排查“到底跑的是哪一版”全靠它 */

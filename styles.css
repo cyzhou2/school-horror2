@@ -23,13 +23,14 @@ html, body {
   user-select: none;
 }
 
-#app { position: fixed; inset: 0; overflow: hidden; background: #000; }
+#app { position: fixed; inset: 0; overflow: hidden; background: #000; touch-action: none; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
 
 #view {
   position: absolute; left: 50%; top: 50%;
   transform: translate(-50%, -50%);
   display: block;
   background: #000;
+  touch-action: none;   /* 拖摇杆时不要让浏览器抢走手势 */
   image-rendering: auto;
 }
 
@@ -705,4 +706,26 @@ h1 {
   color: #f0e6d2;
   background: rgba(120,20,30,.30);
   border-color: rgba(200,60,74,.55);
+}
+
+
+/* ===== 弹窗右上角关闭按钮 ===== */
+.title-wrap { position: relative; }
+.ov-close {
+  position: absolute;
+  top: -6px; right: -6px;
+  width: 36px; height: 36px;
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--sans); font-size: 22px; line-height: 1;
+  color: rgba(210,200,180,.62);
+  background: rgba(20,18,16,.72);
+  border: 1px solid rgba(150,140,120,.28);
+  border-radius: 50%;
+  cursor: pointer;
+  z-index: 2;
+  -webkit-tap-highlight-color: transparent;
+}
+.ov-close:hover { color: #f0e6d2; border-color: rgba(200,60,74,.5); }
+@media (max-aspect-ratio: 1/1) {
+  .ov-close { width: 40px; height: 40px; font-size: 24px; top: -10px; right: -2px; }
 }

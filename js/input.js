@@ -170,6 +170,7 @@ var Input = {
         if (self.controlMode !== "stick") return;
         if (typeof Game === "undefined" || !Game.inGame || Game.state !== "play") return;
         if (stickId !== null) return;           // 已经有一根手指在摇杆上
+        if (e.cancelable) e.preventDefault();  // 别让浏览器把拖拽当成滚动
         enableTouch();
         stickId = e.pointerId === undefined ? "m" : e.pointerId;
         stickOX = e.clientX; stickOY = e.clientY;
@@ -180,12 +181,14 @@ var Input = {
       });
     }
 
-    window.addEventListener("pointermove", function (e) {
+    var onStickMove = function (e) {
       var id = e.pointerId === undefined ? "m" : e.pointerId;
       if (stickId === null || id !== stickId) return;   // 别的手指不算
       if (e.cancelable) e.preventDefault();
       stickApply(e.clientX, e.clientY);
-    }, { passive: false });
+    };
+    document.addEventListener("pointermove", onStickMove, { passive: false });
+    window.addEventListener("pointermove", onStickMove, { passive: false });
 
     var stickEnd = function (e) {
       var id = e.pointerId === undefined ? "m" : e.pointerId;
@@ -194,6 +197,8 @@ var Input = {
       self.axisX = 0; self.axisY = 0;
       stickHide();
     };
+    document.addEventListener("pointerup", stickEnd);
+    document.addEventListener("pointercancel", stickEnd);
     window.addEventListener("pointerup", stickEnd);
     window.addEventListener("pointercancel", stickEnd);
 
