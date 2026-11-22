@@ -2,16 +2,16 @@
 "use strict";
 
 /* 版本号：每次改完同步改这里 + index.html 里的 ?v= */
-var GAME_VERSION = "v6.6 · 20251121p";
+var GAME_VERSION = "v1.0 正式版 · 2026-11-22";
 
 /* 难度：只改鬼的移速与感知范围；简单里没有慢鬼 */
 var DIFFS = {
-  easy:   { key: "easy",   name: "简单", icon: "◉", speed: 0.78, sight: 0.68, noSlow: true,
-            desc: "它更慢、也更瞎；不会有第二个" },
-  normal: { key: "normal", name: "普通", icon: "☠", speed: 1.00, sight: 1.00, noSlow: false,
-            desc: "标准难度，慢鬼会跟着你上楼" },
-  hard:   { key: "hard",   name: "困难", icon: "⚰", speed: 1.16, sight: 1.32, noSlow: false,
-            desc: "它更快、看得更远，慢鬼也更快" }
+  easy:   { key: "easy",   name: "简单", icon: "◉", speed: 0.78, sight: 0.68, noSlow: true, lag: 2.0,
+            desc: "它更慢、也更瞎；追的是你 2 秒前的影子" },
+  normal: { key: "normal", name: "普通", icon: "☠", speed: 1.00, sight: 1.00, noSlow: false, lag: 2.0,
+            desc: "标准难度，鬼追 2 秒前的影子，慢鬼会跟着你上楼" },
+  hard:   { key: "hard",   name: "困难", icon: "⚰", speed: 1.16, sight: 1.32, noSlow: false, lag: 0,
+            desc: "它更快、看得更远，而且不再追影子 —— 直接追你本人" }
 };
 
 var CFG = {

@@ -789,6 +789,13 @@ var Game = {
     while (this.trail.length && now - this.trail[0].t > 8) this.trail.shift();
   },
 
+  /* 当前难度下鬼的“影子延迟”：简单/普通 2 秒，困难 0（直接追本人） */
+  lagFor: function (which) {
+    var d2 = this.diffCfg;
+    if (d2 && typeof d2.lag === "number") return d2.lag;
+    return which === "slow" ? CFG.GHOST_LAG_SLOW : CFG.GHOST_LAG_FAST;
+  },
+
   /* sec 秒前你在哪 —— 鬼的“影子目标” */
   lagPos: function (sec) {
     var tr = this.trail;

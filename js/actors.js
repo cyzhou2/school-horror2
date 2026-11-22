@@ -273,7 +273,8 @@ var Ghost = {
     if (this.state === "chase") {
       this.repathT -= dt;
       if (!this.path.length || this.repathT <= 0) {
-        var lt = g.lagPos ? g.lagPos(CFG.GHOST_LAG_FAST) : { x: p.x, y: p.y };
+        var lagS = g.lagFor ? g.lagFor("fast") : CFG.GHOST_LAG_FAST;
+        var lt = g.lagPos ? g.lagPos(lagS) : { x: p.x, y: p.y };
         this.path = World.findPath(this.x, this.y, lt.x, lt.y);
         this.pathI = 0;
         this.repathT = 0.32;
@@ -294,7 +295,7 @@ var Ghost = {
     var blk = this.barrierProp;
     if (!blk) {
       var aim = null;
-      if (this.state === "chase") aim = (g.lagPos ? g.lagPos(CFG.GHOST_LAG_FAST) : p);
+      if (this.state === "chase") aim = (g.lagPos ? g.lagPos(g.lagFor ? g.lagFor("fast") : CFG.GHOST_LAG_FAST) : p);
       else if (!this.path.length) aim = this.waypoint || this.target;
       if (aim) blk = World.blockerBetween(this.x, this.y, aim.x, aim.y);
     }
@@ -599,7 +600,7 @@ var SlowGhost = {
     if (this.freezeT > 0) { this.freezeT -= dt; return; }
 
     var hidden = p.hidden && p.hidingProp;
-    var lt2 = (!hidden && g.lagPos) ? g.lagPos(CFG.GHOST_LAG_SLOW) : null;
+    var lt2 = (!hidden && g.lagPos) ? g.lagPos(g.lagFor ? g.lagFor("slow") : CFG.GHOST_LAG_SLOW) : null;
     var tx = hidden ? p.hidingProp.px : (lt2 ? lt2.x : p.x);
     var ty = hidden ? p.hidingProp.py : (lt2 ? lt2.y : p.y);
 
