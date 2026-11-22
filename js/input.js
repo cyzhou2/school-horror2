@@ -135,7 +135,7 @@ var Input = {
     /* ---------- 呼出式摇杆：手指按下处就是轮盘中心 ---------- */
     var stickEl = document.getElementById("stick");
     var knobEl = document.getElementById("knob");
-    var stickId = null, stickOX = 0, stickOY = 0;
+    var stickId = null, stickOX = 0, stickOY = 0, stickMoved = false, touchFallback = null;
     var STICK_R = 52;
 
     var stickShow = function (cx, cy) {
@@ -173,6 +173,7 @@ var Input = {
         if (e.cancelable) e.preventDefault();  // 别让浏览器把拖拽当成滚动
         enableTouch();
         stickId = e.pointerId === undefined ? "m" : e.pointerId;
+        stickMoved = false;
         stickOX = e.clientX; stickOY = e.clientY;
         stickShow(e.clientX, e.clientY);
         stickApply(e.clientX, e.clientY);
@@ -185,22 +186,70 @@ var Input = {
       var id = e.pointerId === undefined ? "m" : e.pointerId;
       if (stickId === null || id !== stickId) return;   // 别的手指不算
       if (e.cancelable) e.preventDefault();
+      stickMoved = true;
       stickApply(e.clientX, e.clientY);
     };
     document.addEventListener("pointermove", onStickMove, { passive: false });
     window.addEventListener("pointermove", onStickMove, { passive: false });
 
-    var stickEnd = function (e) {
-      var id = e.pointerId === undefined ? "m" : e.pointerId;
-      if (stickId === null || id !== stickId) return;   // 别的按钮抬手不影响移动
+    var stickEnd = function (hide) {
       stickId = null;
       self.axisX = 0; self.axisY = 0;
-      stickHide();
+      if (hide !== false) stickHide();
     };
-    document.addEventListener("pointerup", stickEnd);
-    document.addEventListener("pointercancel", stickEnd);
-    window.addEventListener("pointerup", stickEnd);
-    window.addEventListener("pointercancel", stickEnd);
+
+    /* 有些 WebView 会把触摸手势判成滚动并 pointercancel，一次 move 都收不到。
+       这种情况下改用 touch 事件继续，别让玩家“按下就断”。 */
+    var startTouchFallback = function () {
+      if (touchFallback) return;
+      var tid = null;
+      var onMove = function (e) {
+        var t = null;
+        for (var k = 0; k < e.touches.length; k++) {
+          if (tid === null || e.touches[k].identifier === tid) { t = e.touches[k]; break; }
+        }
+        if (!t) return;
+        if (tid === null) tid = t.identifier;
+        if (e.cancelable) e.preventDefault();
+        stickApply(t.clientX, t.clientY);
+      };
+      var onEnd = function (ev) {
+        for (var k = 0; k < ev.touches.length; k++) if (ev.touches[k].identifier === tid) return;
+        stop();
+      };
+      var stop = function () {
+        document.removeEventListener("touchmove", onMove);
+        document.removeEventListener("touchend", onEnd);
+        document.removeEventListener("touchcancel", onEnd);
+        touchFallback = null;
+        stickEnd(true);
+      };
+      document.addEventListener("touchmove", onMove, { passive: false });
+      document.addEventListener("touchend", onEnd);
+      document.addEventListener("touchcancel", onEnd);
+      touchFallback = stop;
+    };
+    var endTouchFallback = function () {
+      if (touchFallback) { var s = touchFallback; touchFallback = null; s(); }
+    };
+
+    var onPointerUp = function (e) {
+      var id = e.pointerId === undefined ? "m" : e.pointerId;
+      if (stickId === null || id !== stickId) return;   // 别的按钮抬手不影响移动
+      endTouchFallback();
+      stickEnd(true);
+    };
+    var onPointerCancel = function (e) {
+      var id = e.pointerId === undefined ? "m" : e.pointerId;
+      if (stickId === null || id !== stickId) return;
+      if (!stickMoved) { startTouchFallback(); return; }  // 一次都没动过 → 交给 touch 兜底
+      endTouchFallback();
+      stickEnd(true);
+    };
+    document.addEventListener("pointerup", onPointerUp);
+    document.addEventListener("pointercancel", onPointerCancel);
+    window.addEventListener("pointerup", onPointerUp);
+    window.addEventListener("pointercancel", onPointerCancel);
 
     /* ---------- 亮度：按钮开关面板，竖条拖动 ---------- */
     var brightBtn = document.getElementById("btnBright");
