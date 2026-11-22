@@ -17,7 +17,7 @@ var AudioSys = {
     var ctx = this.ctx = new AC();
 
     this.master = ctx.createGain();
-    this.master.gain.value = this.muted ? 0 : 0.62;
+    this.master.gain.value = this.muted ? 0 : 0.62 * (this.volume === undefined ? 1 : this.volume);
     this.master.connect(ctx.destination);
 
     // 2 秒白噪声缓冲，全篇复用
@@ -38,13 +38,35 @@ var AudioSys = {
     this.muted = m;
     if (this.master) {
       this.master.gain.cancelScheduledValues(this.ctx.currentTime);
-      this.master.gain.linearRampToValueAtTime(m ? 0 : 0.62, this.ctx.currentTime + 0.2);
+      this.master.gain.linearRampToValueAtTime(m ? 0 : 0.62 * (this.volume === undefined ? 1 : this.volume), this.ctx.currentTime + 0.2);
     }
   },
 
   toggleMute: function () {
     this.setMuted(!this.muted);
     return this.muted;
+  },
+
+  /* 0..1 音量（和静音分开，静音优先） */
+  volume: 1,
+
+  setVolume: function (v, save) {
+    this.volume = Math.max(0, Math.min(1, v));
+    if (this.master && this.ctx) {
+      this.master.gain.cancelScheduledValues(this.ctx.currentTime);
+      this.master.gain.linearRampToValueAtTime(this.muted ? 0 : 0.62 * this.volume, this.ctx.currentTime + 0.12);
+    }
+    if (save) { try { localStorage.setItem("sh_volume", String(this.volume)); } catch (e) { /* 忽略 */ } }
+    return this.volume;
+  },
+
+  loadVolume: function () {
+    var v = 1;
+    try {
+      var s = localStorage.getItem("sh_volume");
+      if (s !== null && !isNaN(parseFloat(s))) v = parseFloat(s);
+    } catch (e) { /* 忽略 */ }
+    this.setVolume(v, false);
   },
 
   now: function () { return this.ctx ? this.ctx.currentTime : 0; },

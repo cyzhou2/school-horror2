@@ -8,6 +8,7 @@ var Input = {
   runToggle: false,
   touchRun: false,
   touchMode: false,
+  controlMode: "tap",   // tap = 点屏幕 / stick = 呼出式摇杆
   actionQueued: false,
   liveQueued: false,
   dom: {},
@@ -70,6 +71,7 @@ var Input = {
     var viewEl = document.getElementById("view");
     if (viewEl) {
       viewEl.addEventListener("pointerdown", function (e) {
+        if (self.controlMode === "stick") return;      // 摇杆模式：这里交给摇杆
         if (typeof Game === "undefined" || !Game.inGame || Game.state !== "play") return;
         var r = viewEl.getBoundingClientRect();
         if (!r.width || !r.height) return;
@@ -121,6 +123,79 @@ var Input = {
       this.syncMute = syncMute;
       syncMute();
     }
+
+    var pauseBtn = document.getElementById("btnPause");
+    if (pauseBtn) {
+      pauseBtn.addEventListener("click", function (e) {
+        e.preventDefault(); e.stopPropagation();
+        if (typeof Game !== "undefined" && Game.inGame) Game.togglePause();
+      });
+    }
+
+    /* ---------- 呼出式摇杆：手指按下处就是轮盘中心 ---------- */
+    var stickEl = document.getElementById("stick");
+    var knobEl = document.getElementById("knob");
+    var stickId = null, stickOX = 0, stickOY = 0;
+    var STICK_R = 52;
+
+    var stickShow = function (cx, cy) {
+      if (!stickEl) return;
+      stickEl.style.left = cx + "px";
+      stickEl.style.top = cy + "px";
+      stickEl.classList.remove("hidden");
+    };
+    var stickHide = function () {
+      if (stickEl) stickEl.classList.add("hidden");
+      if (knobEl) knobEl.style.transform = "translate(0,0)";
+    };
+    var stickApply = function (cx, cy) {
+      var dx = cx - stickOX, dy = cy - stickOY;
+      var d = Math.sqrt(dx * dx + dy * dy);
+      if (d < 7) { self.axisX = 0; self.axisY = 0; }
+      else {
+        var k = Math.min(d, STICK_R) / d;
+        self.axisX = dx * k / STICK_R;
+        self.axisY = dy * k / STICK_R;
+      }
+      if (knobEl) {
+        var kx = dx, ky = dy;
+        var l = Math.sqrt(kx * kx + ky * ky);
+        if (l > STICK_R) { kx = kx / l * STICK_R; ky = ky / l * STICK_R; }
+        knobEl.style.transform = "translate(" + kx.toFixed(1) + "px," + ky.toFixed(1) + "px)";
+      }
+    };
+
+    if (viewEl) {
+      viewEl.addEventListener("pointerdown", function (e) {
+        if (self.controlMode !== "stick") return;
+        if (typeof Game === "undefined" || !Game.inGame || Game.state !== "play") return;
+        if (stickId !== null) return;           // 已经有一根手指在摇杆上
+        enableTouch();
+        stickId = e.pointerId === undefined ? "m" : e.pointerId;
+        stickOX = e.clientX; stickOY = e.clientY;
+        stickShow(e.clientX, e.clientY);
+        stickApply(e.clientX, e.clientY);
+        if (Game.cancelAutoMove) Game.cancelAutoMove();
+        try { viewEl.setPointerCapture(e.pointerId); } catch (err) { /* 忽略 */ }
+      });
+    }
+
+    window.addEventListener("pointermove", function (e) {
+      var id = e.pointerId === undefined ? "m" : e.pointerId;
+      if (stickId === null || id !== stickId) return;   // 别的手指不算
+      if (e.cancelable) e.preventDefault();
+      stickApply(e.clientX, e.clientY);
+    }, { passive: false });
+
+    var stickEnd = function (e) {
+      var id = e.pointerId === undefined ? "m" : e.pointerId;
+      if (stickId === null || id !== stickId) return;   // 别的按钮抬手不影响移动
+      stickId = null;
+      self.axisX = 0; self.axisY = 0;
+      stickHide();
+    };
+    window.addEventListener("pointerup", stickEnd);
+    window.addEventListener("pointercancel", stickEnd);
 
     /* ---------- 亮度：按钮开关面板，竖条拖动 ---------- */
     var brightBtn = document.getElementById("btnBright");
@@ -218,13 +293,39 @@ var Input = {
     }
     if (announce && typeof Game !== "undefined" && Game.toast) {
       var tip;
-      if (this.touchMode) {
+      if (this.touchMode && this.controlMode === "stick") {
+        tip = on ? "拖轮盘就是跑 —— 声音更大，也更费体力" : "拖轮盘就是走 —— 更安静";
+      } else if (this.touchMode) {
         tip = on ? "点过的地方，他会跑过去 —— 声音更大，也更费体力" : "点过的地方，他会走过去 —— 更安静";
       } else {
         tip = on ? "现在按住方向会跑，Shift 临时改成走" : "现在按住方向是走，Shift 临时改成跑";
       }
       Game.toast(on ? "跑" : "走", tip, 2200);
     }
+  },
+
+  /* 移动方式：tap（点屏幕）/ stick（摇杆），只有触屏端可选 */
+  setControlMode: function (mode, save) {
+    this.controlMode = mode === "stick" ? "stick" : "tap";
+    if (this.controlMode === "stick") {
+      this.axisX = this.axisY = 0;
+      if (typeof Game !== "undefined" && Game.cancelAutoMove) Game.cancelAutoMove();
+    }
+    var st = document.getElementById("segTap");
+    var sk = document.getElementById("segStick");
+    if (st) st.classList.toggle("on", this.controlMode === "tap");
+    if (sk) sk.classList.toggle("on", this.controlMode === "stick");
+    if (save) { try { localStorage.setItem("sh_ctrl", this.controlMode); } catch (e) { /* 忽略 */ } }
+    return this.controlMode;
+  },
+
+  loadControlMode: function () {
+    var m = "tap";
+    try {
+      var s = localStorage.getItem("sh_ctrl");
+      if (s === "stick" || s === "tap") m = s;
+    } catch (e) { /* 忽略 */ }
+    this.setControlMode(m, false);
   },
 
   takeAction: function () {

@@ -56,6 +56,8 @@ var Game = {
     this.buildPauseEl();
     this.showVersion();
     this.loadBrightness();
+    AudioSys.loadVolume();
+    Input.loadControlMode();
     this.fitCanvas();
     var self = this;
     window.addEventListener("resize", function () { self.fitCanvas(); });
@@ -142,10 +144,67 @@ var Game = {
     d.className = "overlay dark hidden";
     d.id = "pauseScreen";
     d.innerHTML = '<div class="title-wrap"><div class="ending-label">暂停</div>' +
+      '<div class="set-list">' +
+        '<div class="set-row"><span class="set-k">音量</span>' +
+          '<input id="setVol" class="set-range" type="range" min="0" max="100" step="1" value="100">' +
+          '<b class="set-v" id="setVolV"></b></div>' +
+        '<div class="set-row"><span class="set-k">亮度</span>' +
+          '<input id="setBri" class="set-range" type="range" min="55" max="190" step="1" value="100">' +
+          '<b class="set-v" id="setBriV"></b></div>' +
+        '<div class="set-row hidden" id="setCtrlRow"><span class="set-k">移动</span>' +
+          '<div class="seg"><button class="seg-btn on" id="segTap">点屏幕</button>' +
+          '<button class="seg-btn" id="segStick">摇杆</button></div></div>' +
+      '</div>' +
       '<p class="choice-body">直播还在继续，观众在等你回来。<br><br>按 ESC 或 P 继续。</p>' +
       '<div class="build-tag">' + (typeof GAME_VERSION !== "undefined" ? GAME_VERSION : "") + '</div></div>';
     document.getElementById("app").appendChild(d);
     this.pauseEl = d;
+
+    var self2 = this;
+    var vol = d.querySelector("#setVol");
+    var bri = d.querySelector("#setBri");
+    var segTap = d.querySelector("#segTap");
+    var segStick = d.querySelector("#segStick");
+
+    if (vol) {
+      vol.addEventListener("input", function () {
+        AudioSys.resume();
+        var v = AudioSys.setVolume(parseFloat(vol.value) / 100, true);
+        var lab = d.querySelector("#setVolV");
+        if (lab) lab.textContent = Math.round(v * 100) + "%";
+      });
+    }
+    if (bri) {
+      bri.addEventListener("input", function () {
+        var v = self2.setBrightness(parseFloat(bri.value) / 100, true);
+        var lab = d.querySelector("#setBriV");
+        if (lab) lab.textContent = Math.round((v / self2.BRIGHT_MIN > 0 ? (v - self2.BRIGHT_MIN) / (self2.BRIGHT_MAX - self2.BRIGHT_MIN) * 100 : 0)) + "%";
+      });
+    }
+    if (segTap) segTap.addEventListener("click", function (e) { e.preventDefault(); Input.setControlMode("tap", true); });
+    if (segStick) segStick.addEventListener("click", function (e) { e.preventDefault(); Input.setControlMode("stick", true); });
+
+    this.syncPauseSettings();
+  },
+
+  /* 打开暂停时把当前值刷到控件上 */
+  syncPauseSettings: function () {
+    var d = this.pauseEl;
+    if (!d) return;
+    var vol = d.querySelector("#setVol");
+    var volV = d.querySelector("#setVolV");
+    if (vol) vol.value = String(Math.round((AudioSys.volume === undefined ? 1 : AudioSys.volume) * 100));
+    if (volV) volV.textContent = Math.round((AudioSys.volume === undefined ? 1 : AudioSys.volume) * 100) + "%";
+
+    var bri = d.querySelector("#setBri");
+    var briV = d.querySelector("#setBriV");
+    if (bri) bri.value = String(Math.round((this.brightness || 1) * 100));
+    if (briV) briV.textContent = String(Math.round((this.brightness || 1) * 100)) + "%";
+
+    // 只有触屏端才给移动方式选项
+    var row = d.querySelector("#setCtrlRow");
+    if (row) row.classList.toggle("hidden", !Input.touchMode);
+    Input.setControlMode(Input.controlMode || "tap", false);
   },
 
   /* 构建号：显式显示 + 打到控制台，排查“到底跑的是哪一版”全靠它 */
@@ -165,6 +224,7 @@ var Game = {
     this.hideAllOverlays();
     this.clues = {};
     this.clueOrder = {};
+    this.clueSeq = {};
     this.trail = [];
     this.clueCount = 0;
     this.keys = {};
@@ -259,6 +319,7 @@ var Game = {
   togglePause: function () {
     if (this.state === "play") {
       this.state = "paused";
+      this.syncPauseSettings();
       this.pauseEl.classList.remove("hidden");
     } else if (this.state === "paused") {
       this.state = "play";
@@ -1017,9 +1078,12 @@ var Game = {
     var clue = CLUES[id];
     this.clues[id] = true;
     this.clueCount++;
+    this.clueSeq = this.clueSeq || {};
+    this.clueSeq[id] = this.clueCount;   // 第几个拿到的（跟楼层无关）
     AudioSys.pickup();
     this.live.event("clue");
     this.updateClueUi();
+    this.updateObjective();
     this.showDoc(id);
     this.toast(clue.toast, "", 2400);
     this.revealKeysIfReady();
@@ -1043,7 +1107,7 @@ var Game = {
     var c = CLUES[id];
     this.state = "doc";
     document.getElementById("docKind").textContent =
-      LEVELS[c.floor].floorLabel + " · 线索 " + c.order + " / 6";
+      LEVELS[c.floor].floorLabel + " · 线索 " + ((this.clueSeq && this.clueSeq[id]) || c.order) + " / 6";
     document.getElementById("docTitle").textContent = c.title;
     var body = c.body.map(function (t) { return "<p>" + t + "</p>"; }).join("");
     document.getElementById("docBody").innerHTML = body;
@@ -1687,11 +1751,13 @@ var Game = {
   updateClueUi: function () {
     var chips = document.querySelectorAll(".clue-chip");
     var got = [];
-    for (var k in this.clues) if (this.clues[k]) got.push(this.clueOrder[k] || 0);
+    this.clueSeq = this.clueSeq || {};
+    for (var k in this.clues) if (this.clues[k]) got.push(this.clueSeq[k] || 0);
     got.sort(function (a, b) { return a - b; });
     for (var i = 0; i < chips.length; i++) {
       var has = i < got.length;
       chips[i].classList.toggle("found", has);
+      // 显示的是“第几个拿到的”，不是楼层顺序
       chips[i].textContent = has ? String(got[i]) : "?";
     }
   },
